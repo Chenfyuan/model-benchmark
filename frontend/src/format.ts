@@ -1,0 +1,36 @@
+import type { Metric, Run } from './api'
+
+export const CAPABILITY_LABEL: Record<string, string> = { doc_chart: '文档图表', general_qa: '通用问答', tool_call: '工具调用' }
+
+export const KIND_LABEL: Record<string, string> = { benchmark: '公开基准', vqa: '视觉问答', vmcq: '选择题', fc: '工具调用' }
+
+export const STATUS_LABEL: Record<Run['status'], string> = {
+  queued: '排队中', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消',
+}
+export const STATUS_TYPE: Record<Run['status'], 'info' | 'primary' | 'success' | 'danger' | 'warning'> = {
+  queued: 'info', running: 'primary', completed: 'success', failed: 'danger', cancelled: 'warning',
+}
+export const STAGE_LABEL: Record<string, string> = {
+  queued: '排队中', preparing: '准备中', downloading: '下载基准数据', evaluating: '评测中', collecting: '汇总结果', done: '',
+}
+
+export function fmtMetric(m: Pick<Metric, 'value' | 'display_multiplier' | 'precision' | 'display_unit'>): string {
+  if (m.value == null) return '-'
+  return (m.value * (m.display_multiplier || 1)).toFixed(m.precision) + (m.display_unit || '')
+}
+
+export function fmtTime(s: string | null): string {
+  if (!s) return '-'
+  // the backend stores naive UTC timestamps
+  return new Date(s.endsWith('Z') ? s : s + 'Z').toLocaleString('zh-CN', { hour12: false })
+}
+
+export function fmtDuration(a: string | null, b: string | null): string {
+  if (!a) return '-'
+  const start = new Date(a + 'Z').getTime()
+  const end = b ? new Date(b + 'Z').getTime() : Date.now()
+  const sec = Math.max(0, Math.round((end - start) / 1000))
+  return sec < 60 ? `${sec} 秒` : `${Math.floor(sec / 60)} 分 ${sec % 60} 秒`
+}
+
+export const isActive = (r: Run) => r.status === 'queued' || r.status === 'running'

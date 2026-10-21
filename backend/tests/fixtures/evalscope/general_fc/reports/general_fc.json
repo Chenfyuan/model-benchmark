@@ -1,0 +1,364 @@
+{
+ "schema_version": 2,
+ "name": "claude-haiku-4.5@general_fc",
+ "dataset_name": "general_fc",
+ "dataset_pretty_name": "General-FunctionCalling",
+ "model_name": "claude-haiku-4.5",
+ "metrics": [
+  {
+   "identity": {
+    "name": "tool_call_f1",
+    "aggregation": "identity",
+    "dimensions": {}
+   },
+   "legacy_name": null,
+   "num": 4,
+   "score": 1.0,
+   "macro_score": 1.0,
+   "categories": [
+    {
+     "name": [
+      "default"
+     ],
+     "num": 4,
+     "score": 1.0,
+     "macro_score": 1.0,
+     "subsets": [
+      {
+       "name": "demo",
+       "score": 1.0,
+       "num": 4,
+       "metadata": {},
+       "is_aggregate": false
+      }
+     ]
+    }
+   ],
+   "semantics": {
+    "semantic_id": "quality.f1.ratio",
+    "metric_name": "F1",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": null,
+    "value_range": {
+     "min": 0.0,
+     "max": 1.0
+    },
+    "display_kind": "percent",
+    "display_multiplier": 100.0,
+    "display_unit": "%",
+    "display_precision": 1
+   }
+  },
+  {
+   "identity": {
+    "name": "count_finish_reason_tool_call",
+    "aggregation": "identity",
+    "dimensions": {}
+   },
+   "legacy_name": null,
+   "num": 4,
+   "score": 2.0,
+   "macro_score": 2.0,
+   "categories": [
+    {
+     "name": [
+      "default"
+     ],
+     "num": 4,
+     "score": 2.0,
+     "macro_score": 2.0,
+     "subsets": [
+      {
+       "name": "demo",
+       "score": 2.0,
+       "num": 4,
+       "metadata": {},
+       "is_aggregate": false
+      }
+     ]
+    }
+   ],
+   "semantics": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Count",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   }
+  },
+  {
+   "identity": {
+    "name": "count_successful_tool_call",
+    "aggregation": "identity",
+    "dimensions": {}
+   },
+   "legacy_name": null,
+   "num": 4,
+   "score": 2.0,
+   "macro_score": 2.0,
+   "categories": [
+    {
+     "name": [
+      "default"
+     ],
+     "num": 4,
+     "score": 2.0,
+     "macro_score": 2.0,
+     "subsets": [
+      {
+       "name": "demo",
+       "score": 2.0,
+       "num": 4,
+       "metadata": {},
+       "is_aggregate": false
+      }
+     ]
+    }
+   ],
+   "semantics": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Count",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   }
+  },
+  {
+   "identity": {
+    "name": "schema_accuracy",
+    "aggregation": "identity",
+    "dimensions": {}
+   },
+   "legacy_name": null,
+   "num": 4,
+   "score": 1.0,
+   "macro_score": 1.0,
+   "categories": [
+    {
+     "name": [
+      "default"
+     ],
+     "num": 4,
+     "score": 1.0,
+     "macro_score": 1.0,
+     "subsets": [
+      {
+       "name": "demo",
+       "score": 1.0,
+       "num": 4,
+       "metadata": {},
+       "is_aggregate": false
+      }
+     ]
+    }
+   ],
+   "semantics": {
+    "semantic_id": "quality.accuracy.ratio",
+    "metric_name": "Accuracy",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": null,
+    "value_range": {
+     "min": 0.0,
+     "max": 1.0
+    },
+    "display_kind": "percent",
+    "display_multiplier": 100.0,
+    "display_unit": "%",
+    "display_precision": 1
+   }
+  }
+ ],
+ "analysis": "N/A",
+ "perf_metrics": {
+  "summary": {
+   "n_samples": 4,
+   "latency": {
+    "mean": 1.023951,
+    "std": 0.164962,
+    "min": 0.782744,
+    "25%": 0.994771,
+    "50%": 1.07966,
+    "75%": 1.108841,
+    "90%": 1.135781,
+    "99%": 1.151945,
+    "max": 1.153741
+   },
+   "throughput": {
+    "avg_output_tps": 2.44,
+    "avg_req_ps": 0.9766
+   },
+   "usage": {
+    "input_tokens": {
+     "mean": 4698.25,
+     "std": 27.463612,
+     "min": 4673.0,
+     "25%": 4675.25,
+     "50%": 4698.5,
+     "75%": 4721.5,
+     "90%": 4722.4,
+     "99%": 4722.94,
+     "max": 4723.0
+    },
+    "output_tokens": {
+     "mean": 2.5,
+     "std": 3.785939,
+     "min": 0.0,
+     "25%": 0.0,
+     "50%": 1.0,
+     "75%": 3.5,
+     "90%": 6.2,
+     "99%": 7.82,
+     "max": 8.0
+    },
+    "total_tokens": {
+     "mean": 4700.75,
+     "std": 24.824383,
+     "min": 4675.0,
+     "25%": 4681.75,
+     "50%": 4702.5,
+     "75%": 4721.5,
+     "90%": 4722.4,
+     "99%": 4722.94,
+     "max": 4723.0
+    },
+    "total_input_tokens": 18793,
+    "total_output_tokens": 10,
+    "total_tokens_count": 18803
+   }
+  },
+  "coverage": {
+   "requests_with_metrics": 4,
+   "total_requests": 4
+  },
+  "metric_semantics": {
+   "n_samples": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Samples",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   },
+   "latency": {
+    "semantic_id": "perf.latency.seconds",
+    "metric_name": "Latency",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "lower_is_better",
+    "raw_unit": "s",
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": "s",
+    "display_precision": 3
+   },
+   "throughput.avg_output_tps": {
+    "semantic_id": "perf.throughput.tokens_per_second",
+    "metric_name": "Output Throughput",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": "tok/s",
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": "tok/s",
+    "display_precision": 2
+   },
+   "throughput.avg_req_ps": {
+    "semantic_id": "perf.throughput.requests_per_second",
+    "metric_name": "Request Throughput",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": "req/s",
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": "req/s",
+    "display_precision": 2
+   },
+   "usage.input_tokens": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Input Tokens",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   },
+   "usage.output_tokens": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Output Tokens",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   },
+   "usage.total_tokens": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Total Tokens",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   }
+  }
+ },
+ "primary_metric_identity": {
+  "name": "tool_call_f1",
+  "aggregation": "identity",
+  "dimensions": {}
+ },
+ "primary_metric_unavailable_reason": null,
+ "judge_summary": null,
+ "execution_summary": {
+  "requested": 4,
+  "succeeded": 4,
+  "errored": 0,
+  "incomplete": false,
+  "subsets": {
+   "demo": {
+    "requested": 4,
+    "succeeded": 4,
+    "errored": 0
+   }
+  }
+ },
+ "num": 4
+}

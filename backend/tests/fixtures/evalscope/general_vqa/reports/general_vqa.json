@@ -1,0 +1,261 @@
+{
+ "schema_version": 2,
+ "name": "claude-haiku-4.5@general_vqa",
+ "dataset_name": "general_vqa",
+ "dataset_pretty_name": "General-VQA",
+ "model_name": "claude-haiku-4.5",
+ "metrics": [
+  {
+   "identity": {
+    "name": "accuracy",
+    "aggregation": "mean",
+    "dimensions": {}
+   },
+   "legacy_name": null,
+   "num": 6,
+   "score": 1.0,
+   "macro_score": 1.0,
+   "categories": [
+    {
+     "name": [
+      "default"
+     ],
+     "num": 6,
+     "score": 1.0,
+     "macro_score": 1.0,
+     "subsets": [
+      {
+       "name": "demo",
+       "score": 1.0,
+       "num": 6,
+       "metadata": null,
+       "is_aggregate": false
+      }
+     ]
+    }
+   ],
+   "semantics": {
+    "semantic_id": "quality.accuracy.ratio",
+    "metric_name": "Accuracy",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": null,
+    "value_range": {
+     "min": 0.0,
+     "max": 1.0
+    },
+    "display_kind": "percent",
+    "display_multiplier": 100.0,
+    "display_unit": "%",
+    "display_precision": 1
+   }
+  }
+ ],
+ "analysis": "N/A",
+ "perf_metrics": {
+  "summary": {
+   "n_samples": 6,
+   "latency": {
+    "mean": 1.043216,
+    "std": 0.156513,
+    "min": 0.898694,
+    "25%": 0.925302,
+    "50%": 1.005006,
+    "75%": 1.108412,
+    "90%": 1.221482,
+    "99%": 1.300224,
+    "max": 1.308973
+   },
+   "throughput": {
+    "avg_output_tps": 4.47,
+    "avg_req_ps": 0.9586
+   },
+   "usage": {
+    "input_tokens": {
+     "mean": 4224.833333,
+     "std": 0.752773,
+     "min": 4224.0,
+     "25%": 4224.25,
+     "50%": 4225.0,
+     "75%": 4225.0,
+     "90%": 4225.5,
+     "99%": 4225.95,
+     "max": 4226.0
+    },
+    "output_tokens": {
+     "mean": 4.666667,
+     "std": 0.516398,
+     "min": 4.0,
+     "25%": 4.25,
+     "50%": 5.0,
+     "75%": 5.0,
+     "90%": 5.0,
+     "99%": 5.0,
+     "max": 5.0
+    },
+    "total_tokens": {
+     "mean": 4229.5,
+     "std": 1.224745,
+     "min": 4228.0,
+     "25%": 4228.5,
+     "50%": 4230.0,
+     "75%": 4230.0,
+     "90%": 4230.5,
+     "99%": 4230.95,
+     "max": 4231.0
+    },
+    "total_input_tokens": 25349,
+    "total_output_tokens": 28,
+    "total_tokens_count": 25377
+   }
+  },
+  "coverage": {
+   "requests_with_metrics": 6,
+   "total_requests": 6
+  },
+  "metric_semantics": {
+   "n_samples": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Samples",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   },
+   "latency": {
+    "semantic_id": "perf.latency.seconds",
+    "metric_name": "Latency",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "lower_is_better",
+    "raw_unit": "s",
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": "s",
+    "display_precision": 3
+   },
+   "throughput.avg_output_tps": {
+    "semantic_id": "perf.throughput.tokens_per_second",
+    "metric_name": "Output Throughput",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": "tok/s",
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": "tok/s",
+    "display_precision": 2
+   },
+   "throughput.avg_req_ps": {
+    "semantic_id": "perf.throughput.requests_per_second",
+    "metric_name": "Request Throughput",
+    "display_name": null,
+    "kind": "quality",
+    "direction": "higher_is_better",
+    "raw_unit": "req/s",
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": "req/s",
+    "display_precision": 2
+   },
+   "usage.input_tokens": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Input Tokens",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   },
+   "usage.output_tokens": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Output Tokens",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   },
+   "usage.total_tokens": {
+    "semantic_id": "diagnostic.count.items",
+    "metric_name": "Total Tokens",
+    "display_name": null,
+    "kind": "diagnostic",
+    "direction": "none",
+    "raw_unit": null,
+    "value_range": null,
+    "display_kind": "number",
+    "display_multiplier": null,
+    "display_unit": null,
+    "display_precision": 0
+   }
+  }
+ },
+ "primary_metric_identity": null,
+ "primary_metric_unavailable_reason": "Primary metric selector {'name': 'rouge', 'aggregation': 'mean', 'dimensions': {'statistic': 'recall', 'variant': 'l'}} did not match any emitted metric identity.",
+ "judge_summary": {
+  "status": "success",
+  "scored": 6,
+  "total": 6,
+  "coverage": 1.0,
+  "judge_models": [
+   "claude-haiku-4.5"
+  ],
+  "valid_observations": 6,
+  "total_observations": 6,
+  "failures": {},
+  "disagreement": {
+   "numeric": {
+    "acc": {
+     "mean_std": 0.0,
+     "max_range": 0.0,
+     "samples": 6
+    }
+   },
+   "categorical": {
+    "judge": {
+     "mean_agreement_ratio": 1.0,
+     "mean_vote_entropy": 0.0,
+     "samples": 6
+    }
+   },
+   "position_consistency": {
+    "mean": null,
+    "samples": 0,
+    "swap_flip_count": 0
+   }
+  },
+  "error": null
+ },
+ "execution_summary": {
+  "requested": 6,
+  "succeeded": 6,
+  "errored": 0,
+  "incomplete": false,
+  "subsets": {
+   "demo": {
+    "requested": 6,
+    "succeeded": 6,
+    "errored": 0
+   }
+  }
+ },
+ "num": 6
+}
