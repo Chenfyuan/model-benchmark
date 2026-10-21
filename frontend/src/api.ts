@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { message } from 'ant-design-vue'
 
 export interface CheckItem { ok: boolean; detail: string; latency_ms?: number; input_tokens?: number }
 export interface CheckResult {
@@ -51,7 +51,7 @@ http.interceptors.response.use(
     const d = err.response?.data
     if (!err.config?.silent) {
       const detail = Array.isArray(d?.details) && d.details.length ? '\n' + d.details.slice(0, 5).join('\n') : ''
-      ElMessage.error({ message: (d?.message ?? (typeof d?.detail === 'string' ? d.detail : '请求失败：' + err.message)) + detail, duration: 6000 })
+      message.error({ content: (d?.message ?? (typeof d?.detail === 'string' ? d.detail : '请求失败：' + err.message)) + detail, duration: 6 })
     }
     return Promise.reject(err)
   },

@@ -15,15 +15,24 @@
   - 上传自有评测集（视觉问答、选择题、工具调用三种格式，`.jsonl` 或带图片的 `.zip`），上传时逐行校验，同名再传自动生成新版本。
 - **发起评测**：一次选多个模型和多个评测集（每一对生成一个任务）；可配置裁判模型、题数（默认“试跑，每个子集 20 题”）、并发、最大输出、温度；提交前给出 token / 费用预估。
 - **任务管理**：排队 / 运行 / 完成 / 失败 / 取消；显示阶段（下载基准数据、评测中……）和进度；支持取消、重试、用相同配置重跑、删除。
+- **浅色 / 深色主题**：右上角一键切换，记住你的选择。
 - **结果**：主指标和各子集得分、成本与性能（平均延迟、P90、平均输入 / 输出 token、吞吐）、逐条样本（可按答对 / 答错 / 出错、子集、关键词筛选，可放大图片）、导出 CSV、引擎日志。
 
-| 发起评测 | 评测任务 |
+| 发起评测：点选模型和评测集，右侧实时预估 | 评测任务：状态、进度、主指标一目了然 |
 | --- | --- |
 | ![发起评测](docs/images/new-run.png) | ![评测任务](docs/images/runs.png) |
 
-| 逐条样本 | 工具调用样本 |
+| 逐条样本：图、问题、标准答案和模型回答并排，答错的标红 | 工具调用样本 |
 | --- | --- |
 | ![逐条样本](docs/images/run-samples.png) | ![工具调用样本](docs/images/run-samples-tool-call.png) |
+
+| 模型管理 | 连通测试 |
+| --- | --- |
+| ![模型管理](docs/images/models.png) | ![连通测试](docs/images/model-check.png) |
+
+| 评测集 | 深色主题 |
+| --- | --- |
+| ![评测集](docs/images/datasets.png) | ![深色主题](docs/images/dark-overview.png) |
 
 ## 架构
 
@@ -32,7 +41,7 @@
                                           (SQLite / PostgreSQL)    └─ 解析引擎输出，写入平台自己的 metric / sample 表
 ```
 
-- **前端**：Vue 3 + TypeScript + Element Plus + ECharts，构建后由后端直接托管。
+- **前端**：Vue 3 + TypeScript + [Ant Design Vue](https://antdv.com) 4 + ECharts，浅色 / 深色两套主题，构建后由后端直接托管。
 - **后端**：FastAPI + SQLAlchemy。数据库默认 SQLite（单机够用），换 PostgreSQL 只需改 `DATABASE_URL`。
 - **Worker**：独立进程，从数据库里取排队的任务，在子进程里调用评测引擎；取消时终止整个进程组；启动时把上次崩溃遗留的“运行中”任务重新排队。
 - **引擎适配器**：平台只通过 `backend/app/engines/base.py` 里的 `EngineAdapter`（`prepare` / `progress` / `collect`）和引擎打交道。引擎的输出会被转成平台自己的表结构，所以**换引擎或升级引擎不需要改 API、表结构和前端**。
@@ -146,6 +155,8 @@ backend/
   tests/               pytest；引擎用记录下来的真实 EvalScope 输出代替
 frontend/
   src/views/           模型管理、评测集、发起评测、任务列表、结果页
+  src/components/      页头、状态徽标、指标卡片、连通测试结果、图表等共用组件
+  src/theme.ts         Ant Design 主题（主色、圆角、深色算法）；全局样式在 src/style.css
 docs/images/           README 里的截图
 ```
 

@@ -1,14 +1,20 @@
 import type { Metric, Run } from './api'
 
 export const CAPABILITY_LABEL: Record<string, string> = { doc_chart: '文档图表', general_qa: '通用问答', tool_call: '工具调用' }
+export const CAPABILITY_HINT: Record<string, string> = {
+  doc_chart: '读图表、文档页面、OCR',
+  general_qa: '通用看图问答与推理',
+  tool_call: '该不该调用工具、参数格式对不对',
+}
 
 export const KIND_LABEL: Record<string, string> = { benchmark: '公开基准', vqa: '视觉问答', vmcq: '选择题', fc: '工具调用' }
 
 export const STATUS_LABEL: Record<Run['status'], string> = {
   queued: '排队中', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消',
 }
-export const STATUS_TYPE: Record<Run['status'], 'info' | 'primary' | 'success' | 'danger' | 'warning'> = {
-  queued: 'info', running: 'primary', completed: 'success', failed: 'danger', cancelled: 'warning',
+/** Ant Design `a-badge` status values */
+export const STATUS_BADGE: Record<Run['status'], 'default' | 'processing' | 'success' | 'error' | 'warning'> = {
+  queued: 'default', running: 'processing', completed: 'success', failed: 'error', cancelled: 'warning',
 }
 export const STAGE_LABEL: Record<string, string> = {
   queued: '排队中', preparing: '准备中', downloading: '下载基准数据', evaluating: '评测中', collecting: '汇总结果', done: '',
@@ -23,6 +29,16 @@ export function fmtTime(s: string | null): string {
   if (!s) return '-'
   // the backend stores naive UTC timestamps
   return new Date(s.endsWith('Z') ? s : s + 'Z').toLocaleString('zh-CN', { hour12: false })
+}
+
+/** "刚刚 / 5 分钟前 / 2 小时前 / 3 天前" for list views */
+export function fmtAgo(s: string | null): string {
+  if (!s) return '-'
+  const sec = Math.max(0, Math.round((Date.now() - new Date(s + 'Z').getTime()) / 1000))
+  if (sec < 45) return '刚刚'
+  if (sec < 3600) return `${Math.round(sec / 60)} 分钟前`
+  if (sec < 86400) return `${Math.round(sec / 3600)} 小时前`
+  return `${Math.round(sec / 86400)} 天前`
 }
 
 export function fmtDuration(a: string | null, b: string | null): string {

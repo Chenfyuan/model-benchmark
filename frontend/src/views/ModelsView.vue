@@ -1,124 +1,133 @@
 <script setup lang="ts">
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { CheckCircleFilled, CloseCircleFilled, DeleteOutlined, EditOutlined, ExclamationCircleFilled, PlusOutlined, SafetyCertificateOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 import { onMounted, reactive, ref } from 'vue'
 import { api, type CheckResult as CheckResultT, type ModelEndpoint } from '../api'
 import CheckResult from '../components/CheckResult.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const models = ref<ModelEndpoint[]>([])
-const loading = ref(false)
-const dialog = ref(false)
+const loading = ref(true)
+const drawer = ref(false)
 const editing = ref<ModelEndpoint | null>(null)
 const saving = ref(false)
 const checking = ref<number | null>(null)
-const checkDialog = ref<{ name: string; result: CheckResultT } | null>(null)
+const checkView = ref<{ name: string; result: CheckResultT } | null>(null)
 
-const blank = () => ({ name: '', protocol: 'openai', base_url: '', model_name: '', api_key: '', price_input_per_mtok: null as number | null, price_output_per_mtok: null as number | null })
+const blank = () => ({ name: '', protocol: 'openai' as 'openai' | 'anthropic', base_url: '', model_name: '', api_key: '', price_input_per_mtok: null as number | null, price_output_per_mtok: null as number | null })
 const form = reactive(blank())
 
 async function load() {
-  loading.value = true
   try { models.value = await api.models() } finally { loading.value = false }
 }
 onMounted(load)
 
-function openCreate() {
-  editing.value = null
-  Object.assign(form, blank())
-  dialog.value = true
-}
+function openCreate() { editing.value = null; Object.assign(form, blank()); drawer.value = true }
 function openEdit(m: ModelEndpoint) {
   editing.value = m
   Object.assign(form, { name: m.name, protocol: m.protocol, base_url: m.base_url, model_name: m.model_name, api_key: '', price_input_per_mtok: m.price_input_per_mtok, price_output_per_mtok: m.price_output_per_mtok })
-  dialog.value = true
+  drawer.value = true
 }
 async function save() {
-  if (!form.name || !form.base_url || !form.model_name || (!editing.value && !form.api_key)) {
-    ElMessage.warning('名称、地址、模型名和 key 都要填')
-    return
-  }
+  if (!form.name || !form.base_url || !form.model_name || (!editing.value && !form.api_key)) { message.warning('名称、地址、模型名和 key 都要填'); return }
   saving.value = true
   try {
     const body: Record<string, unknown> = { ...form }
     if (editing.value && !form.api_key) delete body.api_key // blank = keep the stored key
+    const wasNew = !editing.value
     const saved = editing.value ? await api.updateModel(editing.value.id, body) : await api.createModel(body)
-    dialog.value = false
+    drawer.value = false
     await load()
-    if (!editing.value) await runCheck(saved) // a new model is tested right away
+    if (wasNew) await runCheck(saved) // a new model is tested right away
   } finally { saving.value = false }
 }
 async function runCheck(m: ModelEndpoint) {
   checking.value = m.id
   try {
-    checkDialog.value = { name: m.name, result: await api.checkModel(m.id) }
+    checkView.value = { name: m.name, result: await api.checkModel(m.id) }
     await load()
   } finally { checking.value = null }
 }
 async function remove(m: ModelEndpoint) {
-  await ElMessageBox.confirm(`确定删除模型“${m.name}”？`, '删除模型', { type: 'warning' })
   await api.deleteModel(m.id)
-  ElMessage.success('已删除')
+  message.success('已删除')
   await load()
 }
-const price = (m: ModelEndpoint) => m.price_input_per_mtok == null ? '未填写' : `${m.price_input_per_mtok} / ${m.price_output_per_mtok ?? '-'}`
+const price = (m: ModelEndpoint) => (m.price_input_per_mtok == null ? '未填写单价' : `$${m.price_input_per_mtok} / $${m.price_output_per_mtok ?? '-'} 每百万 token`)
 </script>
 
 <template>
-  <div class="page-head">
-    <h2>模型管理</h2>
-    <el-button type="primary" @click="openCreate">接入模型</el-button>
+  <div class="page">
+    <PageHeader title="模型管理" sub="登记别人提供的模型 HTTP 接口。key 加密保存，之后不会再显示。">
+      <a-button type="primary" size="large" @click="openCreate"><template #icon><PlusOutlined /></template>接入模型</a-button>
+    </PageHeader>
+
+    <a-spin :spinning="loading">
+      <a-empty v-if="!loading && !models.length" class="card card-pad" style="padding: 56px 0" description="还没有接入任何模型">
+        <a-button type="primary" @click="openCreate">接入第一个模型</a-button>
+      </a-empty>
+      <div v-else class="grid grid-3">
+        <div v-for="m in models" :key="m.id" class="card card-pad model">
+          <div class="row-between">
+            <div style="font-weight: 650; font-size: 16px">{{ m.name }}</div>
+            <a-tag :color="m.protocol === 'openai' ? 'green' : 'orange'" style="margin: 0">{{ m.protocol === 'openai' ? 'OpenAI' : 'Anthropic' }}</a-tag>
+          </div>
+          <div class="mono muted" style="margin: 6px 0 2px">{{ m.model_name }}</div>
+          <div class="faint ellipsis" :title="m.base_url" style="font-size: 12.5px">{{ m.base_url }}</div>
+          <div class="row faint" style="margin: 10px 0 14px; font-size: 12.5px; gap: 14px">
+            <span><SafetyCertificateOutlined /> <span class="mono">{{ m.api_key_hint }}</span></span><span>{{ price(m) }}</span>
+          </div>
+
+          <div class="status" :class="m.last_check ? (m.last_check.ok ? 'good' : 'bad') : ''" @click="m.last_check && (checkView = { name: m.name, result: m.last_check })">
+            <template v-if="m.last_check">
+              <CheckCircleFilled v-if="m.last_check.ok" /><CloseCircleFilled v-else />
+              <span style="flex: 1">{{ m.last_check.ok ? '连通测试通过' : '连通测试有问题' }}</span>
+              <span v-if="m.last_check.warnings.length" class="warn"><ExclamationCircleFilled /> {{ m.last_check.warnings.length }}</span>
+            </template>
+            <span v-else class="faint">还没有测试过</span>
+          </div>
+
+          <div class="row" style="margin-top: 14px">
+            <a-button :loading="checking === m.id" type="primary" ghost @click="runCheck(m)">{{ m.last_check ? '重新测试' : '连通测试' }}</a-button>
+            <a-button @click="openEdit(m)"><template #icon><EditOutlined /></template>编辑</a-button>
+            <a-popconfirm title="确定删除这个模型？" ok-text="删除" cancel-text="取消" :ok-button-props="{ danger: true }" @confirm="remove(m)">
+              <a-button danger type="text"><template #icon><DeleteOutlined /></template></a-button>
+            </a-popconfirm>
+          </div>
+        </div>
+      </div>
+    </a-spin>
+
+    <a-drawer v-model:open="drawer" :title="editing ? '编辑模型' : '接入模型'" :width="460" destroy-on-close>
+      <a-form layout="vertical" :model="form">
+        <a-form-item label="名称" name="name"><a-input v-model:value="form.name" placeholder="例如：Haiku（Anthropic 格式）" /></a-form-item>
+        <a-form-item label="协议" name="protocol">
+          <a-segmented v-model:value="form.protocol" block :options="[{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'anthropic', label: 'Anthropic 兼容' }]" />
+        </a-form-item>
+        <a-form-item label="接口地址" name="base_url" extra="填服务商给的地址，不用带 /v1。"><a-input v-model:value="form.base_url" placeholder="https://api.example.com" /></a-form-item>
+        <a-form-item label="模型名" name="model_name" extra="接口里 model 参数的值。"><a-input v-model:value="form.model_name" /></a-form-item>
+        <a-form-item label="API Key" name="api_key" :extra="editing ? '不修改就留空。' : '加密保存，之后只显示后四位。'"><a-input-password v-model:value="form.api_key" autocomplete="off" /></a-form-item>
+        <a-form-item label="单价（可选）" extra="每百万 token，只用来做费用预估。">
+          <div class="row"><a-input-number v-model:value="form.price_input_per_mtok" :min="0" placeholder="输入" style="flex: 1" /><a-input-number v-model:value="form.price_output_per_mtok" :min="0" placeholder="输出" style="flex: 1" /></div>
+        </a-form-item>
+      </a-form>
+      <template #footer>
+        <div class="row" style="justify-content: flex-end"><a-button @click="drawer = false">取消</a-button><a-button type="primary" :loading="saving" @click="save">{{ editing ? '保存' : '接入并测试' }}</a-button></div>
+      </template>
+    </a-drawer>
+
+    <a-modal :open="!!checkView" :title="`连通测试 · ${checkView?.name}`" :footer="null" :width="560" @cancel="checkView = null">
+      <CheckResult v-if="checkView" :result="checkView.result" />
+    </a-modal>
   </div>
-  <p class="muted">这里登记别人提供的模型 HTTP 接口。key 加密保存，页面和接口都不会再显示它。接入后会立刻做连通测试。</p>
-
-  <el-table :data="models" v-loading="loading" stripe empty-text="还没有接入任何模型">
-    <el-table-column prop="name" label="名称" min-width="140" />
-    <el-table-column label="协议" width="110">
-      <template #default="{ row }"><el-tag size="small" :type="row.protocol === 'openai' ? 'success' : 'warning'">{{ row.protocol === 'openai' ? 'OpenAI' : 'Anthropic' }}</el-tag></template>
-    </el-table-column>
-    <el-table-column prop="model_name" label="模型名" min-width="150" />
-    <el-table-column prop="base_url" label="接口地址" min-width="240" show-overflow-tooltip />
-    <el-table-column prop="api_key_hint" label="Key" width="100"><template #default="{ row }"><span class="mono">{{ row.api_key_hint }}</span></template></el-table-column>
-    <el-table-column label="单价（输入/输出，每百万 token）" width="200"><template #default="{ row }">{{ price(row) }}</template></el-table-column>
-    <el-table-column label="连通测试" width="170">
-      <template #default="{ row }">
-        <template v-if="row.last_check">
-          <el-tag :type="row.last_check.ok ? 'success' : 'danger'" size="small">{{ row.last_check.ok ? '可用' : '有问题' }}</el-tag>
-          <el-tag v-if="row.last_check.warnings.length" type="warning" size="small" style="margin-left: 4px">{{ row.last_check.warnings.length }} 条提醒</el-tag>
-        </template>
-        <span v-else class="muted">未测试</span>
-      </template>
-    </el-table-column>
-    <el-table-column label="操作" width="230" fixed="right">
-      <template #default="{ row }">
-        <el-button link type="primary" :loading="checking === row.id" @click="runCheck(row)">连通测试</el-button>
-        <el-button v-if="row.last_check" link @click="checkDialog = { name: row.name, result: row.last_check }">结果</el-button>
-        <el-button link @click="openEdit(row)">编辑</el-button>
-        <el-button link type="danger" @click="remove(row)">删除</el-button>
-      </template>
-    </el-table-column>
-  </el-table>
-
-  <el-dialog v-model="dialog" :title="editing ? '编辑模型' : '接入模型'" width="560px">
-    <el-form label-width="110px">
-      <el-form-item label="名称"><el-input v-model="form.name" placeholder="例如：Haiku（Anthropic 格式）" /></el-form-item>
-      <el-form-item label="协议">
-        <el-radio-group v-model="form.protocol">
-          <el-radio-button value="openai">OpenAI 兼容</el-radio-button>
-          <el-radio-button value="anthropic">Anthropic 兼容</el-radio-button>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item label="接口地址"><el-input v-model="form.base_url" placeholder="https://api.example.com" /><div class="muted">填服务商给的地址，不用带 /v1。</div></el-form-item>
-      <el-form-item label="模型名"><el-input v-model="form.model_name" placeholder="接口里的 model 参数" /></el-form-item>
-      <el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password :placeholder="editing ? '不修改就留空' : '加密保存'" autocomplete="off" /></el-form-item>
-      <el-form-item label="输入单价"><el-input-number v-model="form.price_input_per_mtok" :min="0" :controls="false" placeholder="可选" /><span class="muted" style="margin-left: 8px">每百万 token，用于费用预估</span></el-form-item>
-      <el-form-item label="输出单价"><el-input-number v-model="form.price_output_per_mtok" :min="0" :controls="false" placeholder="可选" /></el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="dialog = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{ editing ? '保存' : '接入并测试' }}</el-button>
-    </template>
-  </el-dialog>
-
-  <el-dialog :model-value="!!checkDialog" :title="`连通测试：${checkDialog?.name}`" width="640px" @close="checkDialog = null">
-    <CheckResult v-if="checkDialog" :result="checkDialog.result" />
-  </el-dialog>
 </template>
+
+<style scoped>
+.model { transition: box-shadow 0.15s, transform 0.15s; }
+.model:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(20, 24, 40, 0.08); }
+.status { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--c-code); font-size: 13.5px; cursor: pointer; }
+.status.good { background: var(--c-good-soft); color: var(--c-good); }
+.status.bad { background: var(--c-bad-soft); color: var(--c-bad); }
+.warn { color: var(--c-warn); }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>

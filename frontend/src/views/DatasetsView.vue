@@ -1,55 +1,58 @@
 <script setup lang="ts">
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { CheckCircleFilled, DeleteOutlined, EyeOutlined, InboxOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 import { computed, onMounted, ref } from 'vue'
 import { api, type Dataset } from '../api'
-import { CAPABILITY_LABEL, KIND_LABEL, fmtTime } from '../format'
+import CopyCode from '../components/CopyCode.vue'
+import PageHeader from '../components/PageHeader.vue'
+import { CAPABILITY_HINT, CAPABILITY_LABEL, KIND_LABEL, fmtAgo } from '../format'
 
 const datasets = ref<Dataset[]>([])
-const loading = ref(false)
-const tab = ref('builtin')
-const dialog = ref(false)
+const loading = ref(true)
+const tab = ref<'builtin' | 'custom'>('builtin')
+const drawer = ref(false)
 const uploading = ref(false)
 const errors = ref<string[]>([])
 const file = ref<File | null>(null)
-const form = ref({ name: '', kind: 'vqa', capability: '', description: '' })
+const form = ref({ name: '', kind: 'vqa', capability: undefined as string | undefined, description: '' })
 const previewing = ref<{ name: string; rows: unknown[] } | null>(null)
 
 const builtin = computed(() => datasets.value.filter((d) => d.source === 'builtin'))
 const custom = computed(() => datasets.value.filter((d) => d.source === 'custom'))
+const groups = computed(() => ['doc_chart', 'general_qa', 'tool_call'].map((c) => [c, builtin.value.filter((d) => d.capability === c)] as const).filter(([, l]) => l.length))
 
-const EXAMPLES: Record<string, { title: string; hint: string; example: string }> = {
+const FORMATS: Record<string, { title: string; hint: string; example: string }> = {
   vqa: {
-    title: '视觉问答（开放问答、OCR、图表问答）',
-    hint: '每行一条，messages 是 OpenAI 消息格式，图片放在 image_url 里；answer 是标准答案。配上裁判模型才能算准确率，否则只算 BLEU/ROUGE。',
+    title: '视觉问答',
+    hint: '开放问答、OCR、图表问答。answer 是标准答案；配上裁判模型才能算准确率，否则只有 BLEU / ROUGE。',
     example: '{"messages":[{"role":"user","content":[{"type":"text","text":"图里写了什么？"},{"type":"image_url","image_url":{"url":"img/1.png"}}]}],"answer":"ORBIT-208"}',
   },
   vmcq: {
-    title: '选择题（选项可以是文字或图片）',
-    hint: 'question 里用 <image 1> 引用图片，对应 image_1 列；answer 是正确选项的字母。',
+    title: '选择题',
+    hint: '选项可以是文字或图片。question 里用 <image 1> 引用图片，对应 image_1 列；answer 是正确选项的字母。',
     example: '{"question":"<image 1> 背景是什么颜色？","options":["黄色","蓝色","绿色"],"image_1":"img/1.png","answer":"B"}',
   },
   fc: {
     title: '工具调用',
-    hint: 'tools 是 OpenAI 格式的工具定义；should_call_tool 标明这条输入该不该调用工具。只评“该不该调、工具名和参数格式对不对”，不检查参数的值。',
+    hint: 'should_call_tool 标明这条输入该不该调用工具。只评“该不该调、工具名和参数格式对不对”，不检查参数的值。',
     example: '{"messages":[{"role":"user","content":"巴黎天气怎么样？"}],"tools":[{"type":"function","function":{"name":"get_weather","description":"查询天气","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}],"should_call_tool":true}',
   },
 }
 
 async function load() {
-  loading.value = true
   try { datasets.value = await api.datasets() } finally { loading.value = false }
 }
 onMounted(load)
 
 function openUpload() {
-  form.value = { name: '', kind: 'vqa', capability: '', description: '' }
+  form.value = { name: '', kind: 'vqa', capability: undefined, description: '' }
   file.value = null
   errors.value = []
-  dialog.value = true
+  drawer.value = true
 }
-function pick(e: Event) { file.value = (e.target as HTMLInputElement).files?.[0] ?? null }
+const beforeUpload = (f: File) => { file.value = f; return false } // keep it local; we upload with the form
 async function upload() {
-  if (!form.value.name || !file.value) { ElMessage.warning('请填写名称并选择文件'); return }
+  if (!form.value.name || !file.value) { message.warning('请填写名称并选择文件'); return }
   const fd = new FormData()
   fd.append('name', form.value.name)
   fd.append('kind', form.value.kind)
@@ -60,96 +63,97 @@ async function upload() {
   errors.value = []
   try {
     const ds = await api.uploadDataset(fd)
-    ElMessage.success(`已上传：${ds.name} v${ds.version}，${ds.num_samples} 条`)
-    dialog.value = false
+    message.success(`已上传：${ds.name} v${ds.version}，${ds.num_samples} 条`)
+    drawer.value = false
     await load()
   } catch (e: any) {
     errors.value = e.response?.data?.details ?? []
   } finally { uploading.value = false }
 }
 async function preview(d: Dataset) { previewing.value = { name: `${d.name} v${d.version}`, rows: await api.previewDataset(d.id) } }
-async function remove(d: Dataset) {
-  await ElMessageBox.confirm(`确定删除“${d.name} v${d.version}”？`, '删除评测集', { type: 'warning' })
-  await api.deleteDataset(d.id)
-  await load()
-}
+async function remove(d: Dataset) { await api.deleteDataset(d.id); message.success('已删除'); await load() }
+
+const columns = [
+  { title: '名称', key: 'name' }, { title: '类型', key: 'kind', width: 130 }, { title: '能力', key: 'cap', width: 120 },
+  { title: '样本数', dataIndex: 'num_samples', width: 100 }, { title: '上传', key: 'time', width: 130 }, { title: '', key: 'actions', width: 110, align: 'right' as const },
+]
 </script>
 
 <template>
-  <div class="page-head">
-    <h2>评测集</h2>
-    <el-button v-if="tab === 'custom'" type="primary" @click="openUpload">上传评测集</el-button>
-  </div>
+  <div class="page">
+    <PageHeader title="评测集" sub="公开基准和你自己上传的数据集。">
+      <a-button v-if="tab === 'custom'" type="primary" size="large" @click="openUpload"><template #icon><UploadOutlined /></template>上传评测集</a-button>
+    </PageHeader>
 
-  <el-tabs v-model="tab">
-    <el-tab-pane label="内置基准" name="builtin">
-      <p class="muted">公开基准的数据在第一次评测时自动下载并缓存。“已跑通”表示这个基准已经在本平台上实际跑过，其余来自 EvalScope 的官方列表，还没有在这里验证。</p>
-      <el-table :data="builtin" v-loading="loading" stripe>
-        <el-table-column label="能力" width="110"><template #default="{ row }"><el-tag size="small">{{ CAPABILITY_LABEL[row.capability] ?? row.capability }}</el-tag></template></el-table-column>
-        <el-table-column prop="name" label="基准" width="200" />
-        <el-table-column prop="benchmark_id" label="ID" width="180"><template #default="{ row }"><span class="mono">{{ row.benchmark_id }}</span></template></el-table-column>
-        <el-table-column prop="description" label="说明" />
-        <el-table-column label="状态" width="120"><template #default="{ row }"><el-tag :type="row.verified ? 'success' : 'info'" size="small">{{ row.verified ? '已跑通' : '未验证' }}</el-tag></template></el-table-column>
-      </el-table>
-    </el-tab-pane>
+    <a-segmented v-model:value="tab" style="margin-bottom: 16px" :options="[{ value: 'builtin', label: `内置基准 ${builtin.length}` }, { value: 'custom', label: `自有数据集 ${custom.length}` }]" />
 
-    <el-tab-pane label="自有数据集" name="custom">
-      <el-table :data="custom" v-loading="loading" stripe empty-text="还没有上传过自有评测集">
-        <el-table-column prop="name" label="名称" min-width="160" />
-        <el-table-column label="版本" width="80"><template #default="{ row }">v{{ row.version }}</template></el-table-column>
-        <el-table-column label="类型" width="150"><template #default="{ row }">{{ KIND_LABEL[row.kind] ?? row.kind }}</template></el-table-column>
-        <el-table-column label="能力" width="110"><template #default="{ row }">{{ CAPABILITY_LABEL[row.capability] ?? '-' }}</template></el-table-column>
-        <el-table-column prop="num_samples" label="样本数" width="90" />
-        <el-table-column label="上传时间" width="180"><template #default="{ row }">{{ fmtTime(row.created_at) }}</template></el-table-column>
-        <el-table-column prop="description" label="说明" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="130">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="preview(row)">预览</el-button>
-            <el-button link type="danger" @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-tab-pane>
-  </el-tabs>
-
-  <el-dialog v-model="dialog" title="上传评测集" width="700px">
-    <el-form label-width="90px">
-      <el-form-item label="名称"><el-input v-model="form.name" placeholder="同名再上传会生成新版本" /></el-form-item>
-      <el-form-item label="类型">
-        <el-radio-group v-model="form.kind">
-          <el-radio-button v-for="(_, k) in EXAMPLES" :key="k" :value="k">{{ KIND_LABEL[k] }}</el-radio-button>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item label="格式说明">
-        <div>
-          <b>{{ EXAMPLES[form.kind].title }}</b>
-          <div class="muted">{{ EXAMPLES[form.kind].hint }}</div>
-          <pre class="mono example">{{ EXAMPLES[form.kind].example }}</pre>
+    <a-spin :spinning="loading">
+      <template v-if="tab === 'builtin'">
+        <p class="muted" style="margin-top: 0">数据在第一次评测时自动下载并缓存。<b>已跑通</b>表示这个基准已经在本平台上实际跑过，其余来自 EvalScope 的官方列表，还没有在这里验证。</p>
+        <div v-for="[cap, list] in groups" :key="cap" style="margin-bottom: 24px">
+          <div class="row" style="margin-bottom: 10px"><b style="font-size: 16px">{{ CAPABILITY_LABEL[cap] }}</b><span class="faint">{{ CAPABILITY_HINT[cap] }}</span></div>
+          <div class="grid grid-3">
+            <div v-for="d in list" :key="d.id" class="card card-pad">
+              <div class="row-between"><b>{{ d.name }}</b>
+                <a-tag v-if="d.verified" color="success" style="margin: 0"><CheckCircleFilled /> 已跑通</a-tag>
+                <a-tag v-else style="margin: 0">未验证</a-tag>
+              </div>
+              <div class="muted" style="margin: 6px 0 8px; font-size: 13.5px">{{ d.description }}</div>
+              <span class="mono faint">{{ d.benchmark_id }}</span>
+            </div>
+          </div>
         </div>
-      </el-form-item>
-      <el-form-item label="能力">
-        <el-select v-model="form.capability" clearable placeholder="可选"><el-option v-for="(l, k) in CAPABILITY_LABEL" :key="k" :label="l" :value="k" /></el-select>
-      </el-form-item>
-      <el-form-item label="说明"><el-input v-model="form.description" /></el-form-item>
-      <el-form-item label="文件">
-        <input type="file" accept=".jsonl,.zip" @change="pick" />
-        <div class="muted">.jsonl；带本地图片/视频时打包成 .zip（里面一个 .jsonl，媒体用相对路径引用）。</div>
-      </el-form-item>
-    </el-form>
-    <el-alert v-if="errors.length" type="error" :closable="false" title="数据集校验未通过">
-      <div v-for="e in errors" :key="e">{{ e }}</div>
-    </el-alert>
-    <template #footer>
-      <el-button @click="dialog = false">取消</el-button>
-      <el-button type="primary" :loading="uploading" @click="upload">上传并校验</el-button>
-    </template>
-  </el-dialog>
+      </template>
 
-  <el-dialog :model-value="!!previewing" :title="`预览：${previewing?.name}（前 5 条）`" width="760px" @close="previewing = null">
-    <pre v-for="(r, i) in previewing?.rows" :key="i" class="mono example">{{ JSON.stringify(r, null, 1) }}</pre>
-  </el-dialog>
+      <div v-else class="card" style="overflow: hidden">
+        <a-table :columns="columns" :data-source="custom" row-key="id" :pagination="false">
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'name'"><b>{{ record.name }}</b> <a-tag style="margin-left: 6px">v{{ record.version }}</a-tag><div v-if="record.description" class="faint" style="font-size: 12.5px">{{ record.description }}</div></template>
+            <template v-else-if="column.key === 'kind'">{{ KIND_LABEL[record.kind] ?? record.kind }}</template>
+            <template v-else-if="column.key === 'cap'">{{ CAPABILITY_LABEL[record.capability] ?? '—' }}</template>
+            <template v-else-if="column.key === 'time'"><span class="muted">{{ fmtAgo(record.created_at) }}</span></template>
+            <template v-else-if="column.key === 'actions'">
+              <div class="row" style="justify-content: flex-end">
+                <a-tooltip title="预览"><a-button type="text" size="small" @click="preview(record as Dataset)"><template #icon><EyeOutlined /></template></a-button></a-tooltip>
+                <a-popconfirm title="删除这个评测集版本？" ok-text="删除" cancel-text="取消" :ok-button-props="{ danger: true }" @confirm="remove(record as Dataset)"><a-button type="text" size="small" danger><template #icon><DeleteOutlined /></template></a-button></a-popconfirm>
+              </div>
+            </template>
+          </template>
+          <template #emptyText>
+            <a-empty description="还没有上传过自有评测集"><a-button type="primary" @click="openUpload">上传评测集</a-button></a-empty>
+          </template>
+        </a-table>
+      </div>
+    </a-spin>
+
+    <a-drawer v-model:open="drawer" title="上传评测集" :width="620" destroy-on-close>
+      <a-form layout="vertical" :model="form">
+        <a-form-item label="名称" name="name" extra="同名再上传会生成新版本，历史结果不受影响。"><a-input v-model:value="form.name" /></a-form-item>
+        <a-form-item label="类型" name="kind">
+          <a-segmented v-model:value="form.kind" block :options="Object.entries(FORMATS).map(([value, f]) => ({ value, label: f.title }))" />
+          <div class="muted" style="margin: 10px 0 8px; font-size: 13px">{{ FORMATS[form.kind].hint }}</div>
+          <CopyCode :text="FORMATS[form.kind].example" />
+        </a-form-item>
+        <a-form-item label="能力（可选）" name="capability"><a-select v-model:value="form.capability" allow-clear placeholder="用于分组" :options="Object.entries(CAPABILITY_LABEL).map(([value, label]) => ({ value, label }))" /></a-form-item>
+        <a-form-item label="说明（可选）" name="description"><a-input v-model:value="form.description" /></a-form-item>
+        <a-form-item label="文件">
+          <a-upload-dragger :before-upload="beforeUpload" :max-count="1" accept=".jsonl,.zip" :show-upload-list="true" @remove="file = null">
+            <p class="ant-upload-drag-icon"><InboxOutlined /></p>
+            <p class="ant-upload-text">点击或拖拽文件到这里</p>
+            <p class="ant-upload-hint">.jsonl；带本地图片 / 视频时打包成 .zip（里面一个 .jsonl，媒体用相对路径引用）</p>
+          </a-upload-dragger>
+        </a-form-item>
+      </a-form>
+      <a-alert v-if="errors.length" type="error" show-icon message="数据集校验未通过">
+        <template #description><div v-for="e in errors" :key="e">{{ e }}</div></template>
+      </a-alert>
+      <template #footer>
+        <div class="row" style="justify-content: flex-end"><a-button @click="drawer = false">取消</a-button><a-button type="primary" :loading="uploading" @click="upload">上传并校验</a-button></div>
+      </template>
+    </a-drawer>
+
+    <a-modal :open="!!previewing" :title="`预览 · ${previewing?.name}（前 5 条）`" :footer="null" :width="760" @cancel="previewing = null">
+      <pre v-for="(r, i) in previewing?.rows" :key="i" class="code" style="margin-bottom: 10px; max-height: 240px; overflow: auto">{{ JSON.stringify(r, null, 1) }}</pre>
+    </a-modal>
+  </div>
 </template>
-
-<style scoped>
-.example { background: #f5f7fa; padding: 8px 10px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; margin: 6px 0; max-height: 260px; overflow: auto; }
-</style>

@@ -1,20 +1,38 @@
 <script setup lang="ts">
+import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled } from '@ant-design/icons-vue'
 import type { CheckResult } from '../api'
 
 defineProps<{ result: CheckResult }>()
-const LABELS = { text: '文本调用', image: '图片输入（模型真的看到了图）', tools: '工具调用' } as const
+const ITEMS = [
+  { key: 'text', title: '文本调用', sub: '能收到回复' },
+  { key: 'image', title: '图片输入', sub: '模型真的读出了图里的随机码' },
+  { key: 'tools', title: '工具调用', sub: '能返回结构化的工具调用' },
+] as const
 </script>
 
 <template>
   <div>
-    <el-alert v-for="w in result.warnings" :key="w" :title="w" type="warning" show-icon :closable="false" style="margin-bottom: 8px" />
-    <el-descriptions :column="1" border style="margin-top: 8px">
-      <el-descriptions-item v-for="(label, key) in LABELS" :key="key" :label="label">
-        <el-tag :type="result.checks[key].ok ? 'success' : 'danger'" size="small">{{ result.checks[key].ok ? '通过' : '未通过' }}</el-tag>
-        <span style="margin-left: 8px">{{ result.checks[key].detail }}</span>
-        <span v-if="result.checks[key].latency_ms" class="muted" style="margin-left: 8px">{{ result.checks[key].latency_ms }} ms</span>
-      </el-descriptions-item>
-    </el-descriptions>
-    <p v-if="!result.ok" class="muted">文本和图片必须都通过，这个模型才适合做多模态评测。</p>
+    <div v-for="it in ITEMS" :key="it.key" class="item">
+      <CheckCircleFilled v-if="result.checks[it.key].ok" class="ic good" />
+      <CloseCircleFilled v-else class="ic bad" />
+      <div style="flex: 1">
+        <div class="row-between"><b>{{ it.title }}</b><span v-if="result.checks[it.key].latency_ms" class="faint mono">{{ result.checks[it.key].latency_ms }} ms</span></div>
+        <div class="muted" style="font-size: 13px">{{ it.sub }}</div>
+        <div v-if="!result.checks[it.key].ok" style="color: var(--c-bad); font-size: 13px; margin-top: 2px">{{ result.checks[it.key].detail }}</div>
+      </div>
+    </div>
+    <div v-for="w in result.warnings" :key="w" class="item warn">
+      <ExclamationCircleFilled class="ic" style="color: var(--c-warn)" />
+      <div style="font-size: 13px">{{ w }}</div>
+    </div>
+    <p v-if="!result.ok" class="muted" style="margin: 12px 0 0; font-size: 13px">文本和图片必须都通过，这个模型才适合做多模态评测。</p>
   </div>
 </template>
+
+<style scoped>
+.item { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--c-border); border-radius: 12px; margin-bottom: 10px; }
+.item.warn { background: rgba(245, 165, 36, 0.08); border-color: rgba(245, 165, 36, 0.35); }
+.ic { font-size: 20px; margin-top: 2px; }
+.ic.good { color: var(--c-good); }
+.ic.bad { color: var(--c-bad); }
+</style>
