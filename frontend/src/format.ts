@@ -12,6 +12,10 @@ export const KIND_LABEL: Record<string, string> = { benchmark: '公开基准', v
 export const STATUS_LABEL: Record<Run['status'], string> = {
   queued: '排队中', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消',
 }
+/** Heng tone of the status pill: signal = in progress, amber = waiting, teal = done, danger = failed only */
+export const STATUS_TONE: Record<Run['status'], 'signal' | 'amber' | 'teal' | 'danger' | 'muted'> = {
+  queued: 'amber', running: 'signal', completed: 'teal', failed: 'danger', cancelled: 'muted',
+}
 /** Ant Design `a-badge` status values */
 export const STATUS_BADGE: Record<Run['status'], 'default' | 'processing' | 'success' | 'error' | 'warning'> = {
   queued: 'default', running: 'processing', completed: 'success', failed: 'error', cancelled: 'warning',

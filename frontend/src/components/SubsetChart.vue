@@ -4,6 +4,7 @@ import { GridComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { chartTheme } from '../chartTheme'
 import { isDark } from '../theme'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
@@ -15,19 +16,20 @@ let chart: echarts.ECharts | null = null
 function draw() {
   if (!el.value) return
   chart ??= echarts.init(el.value)
-  const text = isDark.value ? '#9aa1b5' : '#6b7285'
-  const grid = isDark.value ? '#262a36' : '#eef0f6'
+  const t = chartTheme()
+  const text = t.text
+  const grid = t.grid
   chart.setOption({
-    animationDuration: 500,
+    ...t.animation,
     grid: { left: 4, right: 64, top: 8, bottom: 4, containLabel: true },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'none' }, formatter: (p: { dataIndex: number }[]) => `${props.items[p[0].dataIndex].name}<br/><b>${props.items[p[0].dataIndex].display}</b>` },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'none' }, ...t.tooltip, formatter: (p: { dataIndex: number }[]) => `${props.items[p[0].dataIndex].name}<br/><b>${props.items[p[0].dataIndex].display}</b>` },
     xAxis: { type: 'value', min: 0, max: props.max, axisLabel: { color: text }, splitLine: { lineStyle: { color: grid } } },
     yAxis: { type: 'category', inverse: true, data: props.items.map((i) => i.name), axisTick: { show: false }, axisLine: { show: false }, axisLabel: { color: text, fontSize: 12 } },
     series: [{
-      type: 'bar', barWidth: 18, showBackground: true, backgroundStyle: { color: grid, borderRadius: 9 },
+      type: 'bar', barWidth: 16, showBackground: true, backgroundStyle: { color: t.track, borderRadius: 6 },
       data: props.items.map((i) => i.value),
-      label: { show: true, position: 'right', color: isDark.value ? '#e8eaf2' : '#1b1f2e', fontWeight: 600, formatter: (p: { dataIndex: number }) => props.items[p.dataIndex].display },
-      itemStyle: { borderRadius: 9, color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#7a5af8' }, { offset: 1, color: '#5b5bd6' }]) },
+      label: { show: true, position: 'right', color: t.ink, fontWeight: 600, formatter: (p: { dataIndex: number }) => props.items[p.dataIndex].display },
+      itemStyle: { borderRadius: 6, color: t.signal },
     }],
   })
 }

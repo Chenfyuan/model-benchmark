@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl, type Metric, type Run, type Sample } from '../api'
 import MetricCard from '../components/MetricCard.vue'
+import RunProgress from '../components/ds/RunProgress.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import SubsetChart from '../components/SubsetChart.vue'
 import { STOP_REASON_LABEL, fmtCost, fmtDuration, fmtMetric, fmtTime, fmtTokens, isActive } from '../format'
@@ -129,7 +130,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
     <div v-if="isActive(run)" class="card card-pad" style="margin-bottom: 16px; text-align: center; padding: 36px 20px">
       <a-spin />
       <div style="font-size: 16px; font-weight: 600; margin-top: 12px">{{ run.status === 'queued' ? '排队中，等待 Worker 取走' : '评测进行中' }}</div>
-      <a-progress v-if="run.status === 'running' && run.stage === 'evaluating'" :percent="Math.round(run.progress * 100)" style="max-width: 420px; margin: 8px auto 0" />
+      <RunProgress v-if="run.status === 'running' && run.stage === 'evaluating'" :percent="run.progress * 100" live style="max-width: 420px; margin: 12px auto 0" />
       <div v-if="run.input_tokens != null" class="muted" style="font-size: 13px; margin-top: 4px">已用 {{ fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0)) }} token<span v-if="run.cost != null">，约 {{ fmtCost(run.cost) }}</span></div>
       <div v-if="run.status === 'queued'" class="muted" style="font-size: 13px; margin-top: 4px">如果迟迟不开始：没有空闲的 Worker，或者同一个模型已有任务在跑（默认依次运行）</div>
       <div class="muted" style="font-size: 13px; margin-top: 4px">完成后这里会自动显示结果</div>
@@ -160,7 +161,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         <a-alert v-if="run.limit" type="info" show-icon message="这是限制了题数的结果" description="样本较少，分数波动大，不能直接和公开榜单的成绩比较。" style="margin-bottom: 16px" />
 
         <div v-if="others.length" class="grid grid-4" style="margin-bottom: 16px">
-          <MetricCard v-for="m in others" :key="m.key" :label="m.label" :value="fmtMetric(m)" :hint="`${m.key} · ${m.num} 题`" />
+          <MetricCard v-for="m in others" :key="m.key" :label="m.label" :value="fmtMetric(m)" :num="m.value" :format="(v) => fmtMetric({ ...m, value: v })" :hint="`${m.key} · ${m.num} 题`" />
         </div>
 
         <div class="grid" :style="{ gridTemplateColumns: subsetBars.length > 1 ? '1fr 1fr' : '1fr' }" style="margin-bottom: 16px">
@@ -179,8 +180,8 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
           <MetricCard v-for="k in ['latency_mean', 'latency_p90', 'latency_max', 'input_tokens_mean', 'output_tokens_mean', 'output_tps']" :key="k" :label="perf[k]?.label ?? k" :value="num(perf[k])" />
         </div>
         <div v-if="run.input_tokens != null" class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px">
-          <MetricCard label="累计用量" :value="fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0))" :hint="`输入 ${fmtTokens(run.input_tokens)} · 输出 ${fmtTokens(run.output_tokens)}`" />
-          <MetricCard label="费用" :value="fmtCost(run.cost)" :hint="run.cost == null ? '这个模型没有填写单价' : '按模型单价和累计用量计算'" />
+          <MetricCard label="累计用量"  :value="fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0))" :num="(run.input_tokens ?? 0) + (run.output_tokens ?? 0)" :format="fmtTokens" :hint="`输入 ${fmtTokens(run.input_tokens)} · 输出 ${fmtTokens(run.output_tokens)}`" />
+          <MetricCard label="费用" :value="fmtCost(run.cost)" :num="run.cost" :format="fmtCost" :hint="run.cost == null ? '这个模型没有填写单价' : '按模型单价和累计用量计算'" />
           <MetricCard label="尝试次数" :value="String(run.attempts)" :hint="run.attempts > 1 ? `重试时跳过了 ${run.reused_samples ?? 0} 个已完成的样本` : '一次跑完'" />
         </div>
         <a-alert v-if="perf.input_tokens_mean && perf.input_tokens_mean.value! > 1500" type="warning" show-icon style="margin-top: 14px"
@@ -263,7 +264,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
 
 <style scoped>
 .title { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
-.hero-value { font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.hero-value { font-family: var(--font-display); font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; }
 .hero-stat { background: rgba(255, 255, 255, 0.14); border-radius: 12px; padding: 10px 16px; min-width: 120px; backdrop-filter: blur(4px); }
 .adj { margin-top: 6px; display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); cursor: help; }
 .review { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--c-border); flex-wrap: wrap; }

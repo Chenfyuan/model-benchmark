@@ -18,11 +18,11 @@ const ITEMS = [
       <div style="flex: 1">
         <div class="row-between"><b>{{ it.title }}</b><span v-if="result.checks[it.key].latency_ms" class="faint mono">{{ result.checks[it.key].latency_ms }} ms</span></div>
         <div class="muted" style="font-size: 13px">{{ it.sub }}</div>
-        <div v-if="!result.checks[it.key].ok" style="color: var(--c-bad); font-size: 13px; margin-top: 2px">{{ result.checks[it.key].detail }}</div>
+        <div v-if="!result.checks[it.key].ok" style="color: var(--danger); font-size: 13px; margin-top: 2px">{{ result.checks[it.key].detail }}</div>
       </div>
     </div>
     <div v-for="w in result.warnings" :key="w" class="item warn">
-      <ExclamationCircleFilled class="ic" style="color: var(--c-warn)" />
+      <ExclamationCircleFilled class="ic" style="color: var(--amber)" />
       <div style="font-size: 13px">{{ w }}</div>
     </div>
     <p v-if="!result.ok" class="muted" style="margin: 12px 0 0; font-size: 13px">文本和图片必须都通过，这个模型才适合做多模态评测。</p>
@@ -30,9 +30,9 @@ const ITEMS = [
 </template>
 
 <style scoped>
-.item { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--c-border); border-radius: 12px; margin-bottom: 10px; }
-.item.warn { background: rgba(245, 165, 36, 0.08); border-color: rgba(245, 165, 36, 0.35); }
+.item { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); margin-bottom: 10px; }
+.item.warn { background: color-mix(in srgb, var(--amber) 10%, transparent); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
 .ic { font-size: 20px; margin-top: 2px; }
-.ic.good { color: var(--c-good); }
-.ic.bad { color: var(--c-bad); }
+.ic.good { color: var(--teal); }
+.ic.bad { color: var(--danger); }
 </style>
