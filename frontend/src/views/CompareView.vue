@@ -309,7 +309,7 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
                     <div v-if="cell.tool_calls" class="mono pre" style="margin-top: 4px">{{ cell.tool_calls.map((t) => `${t.name}(${pretty(t.arguments)})`).join('\n') }}</div>
                     <div v-else class="pre atext">{{ cell.extracted && cell.extracted !== cell.prediction ? cell.extracted : cell.prediction || '（空）' }}</div>
                     <div v-if="cell.reviewed" class="faint" style="font-size: 12px; margin-top: 2px">人工复核{{ cell.engine_correct !== cell.is_correct ? '（改判）' : '' }}</div>
-                    <a-tooltip v-else-if="cell.auto_reason && cell.is_correct && cell.engine_correct === false" :title="cell.auto_reason"><div class="faint" style="font-size: 12px; margin-top: 2px; cursor: help">宽松匹配通过（引擎判错）</div></a-tooltip>
+                    <a-tooltip v-else-if="cell.auto_reason && cell.engine_correct !== cell.is_correct" :title="cell.auto_reason"><div class="faint" style="font-size: 12px; margin-top: 2px; cursor: help">{{ cell.is_correct ? '宽松匹配通过（引擎判错）' : '参数检查未通过（引擎判对）' }}</div></a-tooltip>
                     <a-tooltip v-if="cell.extracted && cell.extracted !== cell.prediction && !cell.tool_calls" :title="cell.prediction"><div class="faint" style="font-size: 12px; margin-top: 2px; cursor: help">抽取自完整回答（悬停查看）</div></a-tooltip>
                   </template>
                 </div>

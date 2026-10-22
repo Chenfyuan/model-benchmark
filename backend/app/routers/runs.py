@@ -42,7 +42,7 @@ def run_out(run: Run, headline: RunMetric | None, adjusted: dict | None = None) 
         input_tokens=run.input_tokens, output_tokens=run.output_tokens, cost=run.cost, stop_reason=run.stop_reason,
         retry_after=run.retry_after, auto_retries=run.auto_retries,
         headline=None if headline is None else {"label": headline.label, "value": headline.value, "display": _fmt(headline)},
-        adjusted=None if adjusted is None else {k: adjusted[k] for k in ("adjusted", "display", "n_lenient", "n_manual")},
+        adjusted=None if adjusted is None else {k: adjusted[k] for k in ("adjusted", "display", "n_lenient", "n_args", "n_manual")},
     )
 
 
@@ -277,7 +277,7 @@ def _sample_filters(run_id: int, subset: str | None, correct: str | None, q: str
     elif correct == "false":
         conds.append(func.coalesce(SampleResult.final_correct, SampleResult.is_correct).is_(False))
     elif correct == "changed":  # lenient upgrades and manual decisions that differ from the engine
-        conds.append(or_(SampleResult.auto_correct.is_(True), SampleResult.review_correct.is_not(None)))
+        conds.append(or_(SampleResult.auto_correct.is_not(None), SampleResult.review_correct.is_not(None)))
     elif correct == "error":
         conds.append(SampleResult.error.is_not(None))
     if q:

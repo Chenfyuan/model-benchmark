@@ -52,4 +52,17 @@ with TestClient(app) as c:
             db.add(RunMetric(run_id=rid, kind="quality", key="relaxed_acc", label="Accuracy", subset="OVERALL", value=acc, num=10,
                              display_multiplier=100.0, display_unit="%", precision=1, direction="higher_is_better", primary=True))
             db.commit()
+    # a tool-call run: the engine passed both calls, but the second one has the wrong argument value
+    tool = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}}}
+    fc_rows = [{"messages": [{"role": "user", "content": f"weather in {c}?"}], "tools": [tool], "should_call_tool": True,
+                "expected_calls": [{"name": "get_weather", "arguments": {"city": c}}]} for c in ("Paris", "Tokyo")]
+    dsf = c.post("/api/v1/datasets", data={"name": "工具参数-演示", "kind": "fc", "capability": "tool_call"}, files={"file": ("t.jsonl", "\n".join(map(json.dumps, fc_rows)).encode())}).json()
+    rid = c.post("/api/v1/runs", json={"model_ids": [models["model-b"]], "dataset_ids": [dsf["id"]]}).json()[0]["id"]
+    with SessionLocal() as db:
+        db.execute(update(Run).where(Run.id == rid).values(status="completed", stage="done", engine_version="1.14.0"))
+        db.add(RunMetric(run_id=rid, kind="quality", key="pass", label="Pass", subset="OVERALL", value=1.0, num=2, display_multiplier=100.0, display_unit="%", precision=1, direction="higher_is_better", primary=True))
+        for i, city in enumerate(("Paris", "Kyoto")):
+            db.add(SampleResult(run_id=rid, idx=i, subset="data", question=f"weather in {('Paris', 'Tokyo')[i]}?", is_correct=True, score=1.0, tool_calls=[{"name": "get_weather", "arguments": {"city": city}}]))
+        db.commit()
+    c.post(f"/api/v1/runs/{rid}/rescore")
 print("seeded")

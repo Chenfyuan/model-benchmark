@@ -123,7 +123,7 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
           <template v-else-if="column.key === 'headline'">
             <template v-if="record.headline">
               <span class="hl">{{ record.headline.display }}</span> <span class="faint" style="font-size: 12px; margin-left: 6px">{{ record.headline.label }}</span>
-              <a-tooltip v-if="record.adjusted" :title="`宽松匹配 ${record.adjusted.n_lenient} 题、人工改判 ${record.adjusted.n_manual} 题后的得分；引擎原始得分是 ${record.headline.display}`"><a-tag color="processing" style="margin: 0 0 0 6px">复核后 {{ record.adjusted.display }}</a-tag></a-tooltip>
+              <a-tooltip v-if="record.adjusted" :title="`宽松匹配 ${record.adjusted.n_lenient} 题、参数不符 ${record.adjusted.n_args} 题、人工改判 ${record.adjusted.n_manual} 题后的得分；引擎原始得分是 ${record.headline.display}`"><a-tag color="processing" style="margin: 0 0 0 6px">复核后 {{ record.adjusted.display }}</a-tag></a-tooltip>
             </template>
             <span v-else class="faint">—</span>
           </template>

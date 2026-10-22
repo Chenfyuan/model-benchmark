@@ -1,9 +1,10 @@
 """Lenient answer matching and manual review, layered on top of the engine's verdicts.
 
 The engine's own score (`SampleResult.is_correct` / `score`) is never overwritten. On top of it:
-  auto_correct    - a lenient re-check says the answer is right although the engine marked it wrong (e.g. "6.8%" vs "6.8")
+  auto_correct    - the platform's own re-check disagrees with the engine: True = right although the engine said wrong (lenient
+                    matching, e.g. "6.8%" vs "6.8"), False = wrong although the engine said right (tool-call argument values)
   review_correct  - a person's decision, wins over everything
-  final_correct   - review_correct, else auto_correct (True only), else is_correct; what filters / comparisons use
+  final_correct   - review_correct, else auto_correct, else is_correct; what filters / comparisons use
 The "adjusted" score recomputes the headline from the final verdicts, and is only offered when the engine's headline is a
 plain mean of per-sample scores (checked, not assumed).
 """
@@ -61,8 +62,8 @@ def lenient_match(targets: str | None, prediction: str | None, extracted: str | 
 def final_verdict(s: SampleResult) -> bool | None:
     if s.review_correct is not None:
         return s.review_correct
-    if s.auto_correct:
-        return True
+    if s.auto_correct is not None:
+        return s.auto_correct
     return s.is_correct
 
 
@@ -86,16 +87,35 @@ def apply_lenient(s: SampleResult | dict[str, Any]) -> None:
 
 
 def rescore_run(db: Session, run: Run) -> dict[str, int]:
-    """Re-run the lenient check over a finished run's stored answers (no model calls). Judge-graded runs are skipped."""
+    """Re-run the platform's own checks over a finished run's stored answers (no model calls). Judge-graded runs are skipped.
+
+    Tool-call datasets get the argument-value check, everything else the lenient matching.
+    """
     if run.judge_model_id:
-        return {"checked": 0, "upgraded": 0, "skipped_reason_judge": 1}
+        return {"checked": 0, "upgraded": 0, "downgraded": 0, "skipped_reason_judge": 1}
     rows = db.scalars(select(SampleResult).where(SampleResult.run_id == run.id)).all()
-    up = 0
-    for s in rows:
-        apply_lenient(s)
-        up += bool(s.auto_correct)
+    up = down = 0
+    if run.dataset.kind == "fc":
+        from .tool_check import apply_tool_check
+
+        down = apply_tool_check(rows, load_dataset_rows(run.dataset.path))
+    else:
+        for s in rows:
+            apply_lenient(s)
+            up += s.auto_correct is True
     db.commit()
-    return {"checked": len(rows), "upgraded": up, "skipped_reason_judge": 0}
+    return {"checked": len(rows), "upgraded": up, "downgraded": down, "skipped_reason_judge": 0}
+
+
+def load_dataset_rows(path: str | None) -> list[dict]:
+    """The rows of a stored custom dataset (data.jsonl), in order; empty for built-in benchmarks."""
+    import json
+    from pathlib import Path
+
+    f = Path(path) / "data.jsonl" if path else None
+    if not f or not f.is_file():
+        return []
+    return [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 # ---------------------------------------------------------------- adjusted score
@@ -110,9 +130,10 @@ def adjusted_scores(db: Session, run_id: int) -> dict[str, Any] | None:
     if head is None or head.value is None:
         return None
     rows = db.scalars(select(SampleResult).where(SampleResult.run_id == run_id)).all()
-    n_auto = sum(1 for s in rows if s.review_correct is None and s.auto_correct)
+    n_auto = sum(1 for s in rows if s.review_correct is None and s.auto_correct is True)
+    n_args = sum(1 for s in rows if s.review_correct is None and s.auto_correct is False)
     n_manual = sum(1 for s in rows if s.review_correct is not None and s.review_correct != s.is_correct)
-    if not (n_auto or n_manual):
+    if not (n_auto or n_args or n_manual):
         return None
 
     def adj(s: SampleResult) -> float | None:
@@ -143,7 +164,7 @@ def adjusted_scores(db: Session, run_id: int) -> dict[str, Any] | None:
     return {
         "label": head.label, "engine": head.value, "adjusted": overall,
         "display": f"{overall * (head.display_multiplier or 1.0):.{head.precision}f}{head.display_unit}",
-        "n_lenient": n_auto, "n_manual": n_manual,
+        "n_lenient": n_auto, "n_args": n_args, "n_manual": n_manual,
         "subsets": {s: {"engine": eng_sub[s], "adjusted": adj_sub[s], "num": len(xs)} for s, xs in by_sub.items() if s},
     }
 
@@ -152,6 +173,6 @@ def reviewed_counts(db: Session, run_ids: list[int]) -> dict[int, tuple[int, int
     """(lenient upgrades, manual reviews) per run, for list pages."""
     if not run_ids:
         return {}
-    q = select(SampleResult.run_id, func.sum(SampleResult.auto_correct.is_(True)), func.sum(SampleResult.review_correct.is_not(None))) \
+    q = select(SampleResult.run_id, func.sum(SampleResult.auto_correct.is_not(None)), func.sum(SampleResult.review_correct.is_not(None))) \
         .where(SampleResult.run_id.in_(run_ids)).group_by(SampleResult.run_id)
     return {rid: (int(a or 0), int(m or 0)) for rid, a, m in db.execute(q)}

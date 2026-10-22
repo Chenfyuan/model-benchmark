@@ -3,7 +3,8 @@
 Standard internal formats are EvalScope's custom formats (design doc, section 4.2):
   vqa   - JSONL: {"messages": [...OpenAI messages...], "answer": "..."}  (media inside messages, or placeholder columns)
   vmcq  - JSONL: {"question": "...<image 1>...", "options": [...], "answer": "B", "image_1": "<path|url|data-url>"}
-  fc    - JSONL: {"messages": [...], "tools": [...OpenAI tools...], "should_call_tool": true}
+  fc    - JSONL: {"messages": [...], "tools": [...OpenAI tools...], "should_call_tool": true,
+                  "expected_calls": [{"name": "...", "arguments": {...}}]  (optional: also check the argument values)}
 Uploads are a single .jsonl, or a .zip holding one .jsonl plus the media files it references by relative path.
 """
 from __future__ import annotations
@@ -104,6 +105,9 @@ def validate_row(kind: str, row: Any) -> list[str]:
             errs.append("tools 里每项都需要 function.name")
         if not isinstance(row.get("should_call_tool"), bool):
             errs.append("should_call_tool 必须是 true 或 false")
+        from .tool_check import validate_expected
+
+        errs.extend(validate_expected(row))
     return errs
 
 

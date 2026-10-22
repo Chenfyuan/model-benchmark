@@ -137,3 +137,17 @@ def test_scoring_scheme_with_configurable_weights_ranks_models_on_the_compare_pa
     page.goto(f"{page.base}/compare?runs=1,2&scheme={api(page, '/schemes')[0]['id']}")  # one dataset only: no composite
     page.wait_for_selector(".crow.dim")
     assert "文档题-演示" in page.locator(".crow.dim").first.inner_text()
+
+
+def test_tool_call_argument_check_is_shown_on_the_sample_and_in_the_score(page):
+    runs = {r["dataset_name"]: r for r in api(page, "/runs?page_size=50")["items"]}
+    rid = runs["工具参数-演示"]["id"]
+    page.goto(f"{page.base}/runs/{rid}")
+    page.wait_for_selector(".hero")
+    assert "100.0%" in page.locator(".hero").inner_text() and "复核后 50.0%" in page.locator(".hero").inner_text()  # the engine passed both
+    assert "参数不符 1" in page.locator(".hero").inner_text()
+    page.get_by_role("tab", name=re.compile("样本")).click()
+    page.wait_for_selector(".verdict")
+    assert page.get_by_text("参数检查未通过").count() == 1
+    card = page.locator(".verdict", has_text="weather in Tokyo")
+    assert "答错" in card.inner_text() and 'get_weather({"city": "Tokyo"})' in card.inner_text()  # the expectation is the standard answer

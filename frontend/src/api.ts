@@ -33,7 +33,7 @@ export interface Run {
   retry_after: string | null; auto_retries: number | null
   headline: { label: string; value: number | null; display: string } | null
   /** headline recomputed after lenient matching / manual review; null when nothing changed or it cannot be recomputed */
-  adjusted: { adjusted: number; display: string; n_lenient: number; n_manual: number } | null
+  adjusted: { adjusted: number; display: string; n_lenient: number; n_args: number; n_manual: number } | null
 }
 export interface Metric {
   kind: string; key: string; label: string; subset: string; value: number | null; num: number | null
@@ -132,7 +132,7 @@ export const api = {
   samples: (id: number, params: object) => http.get<Page<Sample>>(`/runs/${id}/samples`, { params }).then((r) => r.data),
   reviewSample: (runId: number, sampleId: number, correct: boolean | null, note?: string) =>
     http.put<Sample>(`/runs/${runId}/samples/${sampleId}/review`, { correct, note }).then((r) => r.data),
-  rescore: (id: number) => http.post<{ checked: number; upgraded: number; skipped_reason_judge: number }>(`/runs/${id}/rescore`).then((r) => r.data),
+  rescore: (id: number) => http.post<{ checked: number; upgraded: number; downgraded: number; skipped_reason_judge: number }>(`/runs/${id}/rescore`).then((r) => r.data),
   log: (id: number) => http.get<string>(`/runs/${id}/log`, { transformResponse: (d) => d }).then((r) => r.data),
 }
 

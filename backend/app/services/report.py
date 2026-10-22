@@ -70,6 +70,8 @@ def _img(run_id: int, s: SampleResult) -> str:
 def _verdict_tag(s: SampleResult) -> str:
     if s.review_correct is not None:
         return '<span class="tag">人工改判</span>' if s.review_correct != s.is_correct else '<span class="tag">人工确认</span>'
+    if s.auto_correct is False:
+        return '<span class="tag">参数检查未通过</span>'
     return '<span class="tag">宽松匹配通过</span>' if s.auto_correct else ""
 
 
@@ -110,7 +112,7 @@ def run_report(db: Session, r: Run) -> str:
     if primary:
         sub = f"{escape(primary.key)} · {primary.num} 题"
         if adj:
-            sub += f' · 复核后 <b>{escape(adj["display"])}</b>（宽松匹配 {adj["n_lenient"]} 题、人工改判 {adj["n_manual"]} 题）'
+            sub += f' · 复核后 <b>{escape(adj["display"])}</b>（宽松匹配 {adj["n_lenient"]} 题、参数不符 {adj["n_args"]} 题、人工改判 {adj["n_manual"]} 题）'
         body.append(f'<div class="hero"><div class="s">{escape(primary.label)} · 引擎主指标</div><div class="v">{escape(_fmt_metric(primary))}</div><div class="s">{sub}</div></div>')
     if r.limit:
         body.append('<div class="warn">这是限制了题数的试跑，样本少、分数波动大，不能和公开榜单的成绩比较。</div>')

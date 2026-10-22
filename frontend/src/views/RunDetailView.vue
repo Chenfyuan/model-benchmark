@@ -75,7 +75,7 @@ async function showLog() { logLoading.value = true; try { logText.value = (await
 const final = (s: Sample) => (s.final_correct !== null && s.final_correct !== undefined ? s.final_correct : s.is_correct)
 const verdict = (s: Sample): ['good' | 'bad' | 'warn' | '', string] => (s.error ? ['warn', '出错'] : final(s) === true ? ['good', '答对'] : final(s) === false ? ['bad', '答错'] : ['', '未判定'])
 /** where the shown verdict comes from, when it is not just the engine's */
-const source = (s: Sample): string | null => (s.review_correct !== null ? (s.review_correct !== s.is_correct ? '人工改判' : '人工确认') : s.auto_correct ? '宽松匹配通过' : null)
+const source = (s: Sample): string | null => (s.review_correct !== null ? (s.review_correct !== s.is_correct ? '人工改判' : '人工确认') : s.auto_correct === true ? '宽松匹配通过' : s.auto_correct === false ? '参数检查未通过' : null)
 async function review(s: Sample, correct: boolean | null) {
   const updated = await api.reviewSample(id, s.id, correct, correct === null ? undefined : noteDraft.value[s.id] || s.review_note || undefined)
   Object.assign(s, updated)
@@ -90,7 +90,7 @@ async function saveNote(s: Sample) {
 async function rescore() {
   const r = await api.rescore(id)
   if (r.skipped_reason_judge) return void Modal.info({ title: '这个任务用了裁判模型', content: '裁判模型已经按语义判过对错，宽松匹配不再重复判断。可以在样本里手动改判。' })
-  message.success(`重新评分完成：检查了 ${r.checked} 题，${r.upgraded} 题按宽松规则判为答对`)
+  message.success(`重新评分完成：检查了 ${r.checked} 题，${r.upgraded} 题按宽松规则判为答对，${r.downgraded} 题因工具调用参数不符判为答错`)
   await loadRun(); await loadSamples()
 }
 const pretty = (o: unknown) => JSON.stringify(o, null, 1)
@@ -142,7 +142,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
           <div class="muted">{{ primary.label }} · 主指标</div>
           <div class="hero-value">{{ fmtMetric(primary) }}</div>
           <div class="muted" style="font-size: 13px">{{ primary.key }} · {{ primary.num }} 题<span v-if="wrongCount"> · 约 {{ wrongCount }} 题答错</span></div>
-          <a-tooltip v-if="run.adjusted" :title="`上面是引擎的原始得分。宽松匹配 ${run.adjusted.n_lenient} 题、人工改判 ${run.adjusted.n_manual} 题后重新计算的得分是 ${run.adjusted.display}。`"><div class="adj">复核后 {{ run.adjusted.display }} · 宽松匹配 {{ run.adjusted.n_lenient }} · 人工改判 {{ run.adjusted.n_manual }}</div></a-tooltip>
+          <a-tooltip v-if="run.adjusted" :title="`上面是引擎的原始得分。宽松匹配 ${run.adjusted.n_lenient} 题、工具调用参数不符 ${run.adjusted.n_args} 题、人工改判 ${run.adjusted.n_manual} 题后重新计算的得分是 ${run.adjusted.display}。`"><div class="adj">复核后 {{ run.adjusted.display }} · 宽松匹配 {{ run.adjusted.n_lenient }} · 参数不符 {{ run.adjusted.n_args }} · 人工改判 {{ run.adjusted.n_manual }}</div></a-tooltip>
         </div>
         <div class="row" style="gap: 12px; flex-wrap: wrap">
           <div v-for="k in ['latency_mean', 'input_tokens_mean', 'output_tokens_mean']" :key="k" class="hero-stat">
@@ -192,7 +192,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
       <a-tab-pane key="samples" :tab="`样本 ${sampleTotal}`">
         <div class="row" style="margin-bottom: 14px; flex-wrap: wrap; gap: 12px">
           <a-segmented v-model:value="filter.correct" :options="[{ value: '', label: '全部' }, { value: 'false', label: '答错' }, { value: 'error', label: '出错' }, { value: 'true', label: '答对' }, { value: 'changed', label: '有改判' }]" />
-          <a-tooltip title="不重新调用模型：对已有的回答再按宽松规则检查一遍（忽略大小写、标点，数值忽略 %、千分位、单位）。引擎原始得分不会被改。"><a-button @click="rescore">重新评分（宽松匹配）</a-button></a-tooltip>
+          <a-tooltip title="不重新调用模型：对已有的回答再检查一遍。普通题按宽松规则（忽略大小写、标点，数值忽略 %、千分位、单位）；工具调用题检查参数的值是否和评测集里写的期望一致。引擎原始得分不会被改。"><a-button @click="rescore">重新评分（宽松匹配 / 参数检查）</a-button></a-tooltip>
           <a-select v-if="subsets.length > 1" v-model:value="filter.subset" allow-clear placeholder="全部子集" style="width: 160px" :options="subsets.map((s) => ({ value: s, label: s }))" />
           <a-input v-model:value="filter.q" allow-clear placeholder="搜索问题 / 答案 / 回答" style="width: 260px" />
         </div>

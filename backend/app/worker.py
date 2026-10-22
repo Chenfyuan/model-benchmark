@@ -32,7 +32,8 @@ from .db import SessionLocal, init_db
 from .engines import get_adapter
 from .engines.base import Endpoint, EngineAdapter, ParsedResult, RunContext, Usage
 from .models import ModelEndpoint, Run, RunMetric, SampleResult, Worker, utcnow
-from .services.rescoring import apply_lenient
+from .services.rescoring import apply_lenient, load_dataset_rows
+from .services.tool_check import apply_tool_check
 from .services.budget import check as check_budget
 from .services.budget import get_budget, month_usage, run_cost
 
@@ -98,7 +99,8 @@ def error_summary(log_text: str, secrets: list[str]) -> str:
 def save_results(run_id: int, parsed: ParsedResult) -> None:
     with SessionLocal() as db:
         db.execute(delete(RunMetric).where(RunMetric.run_id == run_id))
-        judged = bool(db.scalar(select(Run.judge_model_id).where(Run.id == run_id)))
+        run = db.get(Run, run_id)
+        judged, ds = bool(run.judge_model_id), run.dataset
         # a retry re-collects every sample: keep a person's decisions for answers that did not change
         kept = {(r.subset, r.idx): r for r in db.scalars(select(SampleResult).where(SampleResult.run_id == run_id, SampleResult.review_correct.is_not(None)))}
         kept = {k: (r.prediction, r.review_correct, r.review_note, r.reviewed_at) for k, r in kept.items()}
@@ -108,11 +110,14 @@ def save_results(run_id: int, parsed: ParsedResult) -> None:
             old = kept.get((s["subset"], s["idx"]))
             if old and old[0] == s["prediction"]:
                 s["review_correct"], s["review_note"], s["reviewed_at"] = old[1:]
-            if judged:  # the judge model already decides meaning; lenient string matching adds nothing
+            if judged or ds.kind == "fc":  # a judge decides meaning itself; tool calls get the argument check below, not string matching
                 review = s.get("review_correct")
                 s.update(auto_correct=None, auto_reason=None, final_correct=s["is_correct"] if review is None else review)
             else:
                 apply_lenient(s)
+        if ds.kind == "fc" and not judged:
+            apply_tool_check(parsed.samples, load_dataset_rows(ds.path))  # expectations in the dataset, if any: argument values
+        for s in parsed.samples:
             db.add(SampleResult(run_id=run_id, **s))
         db.execute(update(Run).where(Run.id == run_id).values(engine_version=parsed.engine_version))
         db.commit()
