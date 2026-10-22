@@ -86,9 +86,9 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
     </div>
     <div class="grid grid-4" style="margin-bottom: 16px">
       <div class="card card-pad stat"><div class="muted">全部任务</div><div class="n">{{ counts.all }}</div></div>
-      <div class="card card-pad stat"><div class="muted">运行中</div><div class="n" style="color: var(--c-primary)">{{ counts.running }}</div></div>
-      <div class="card card-pad stat"><div class="muted">已完成</div><div class="n" style="color: var(--c-good)">{{ counts.completed }}</div></div>
-      <div class="card card-pad stat"><div class="muted">失败</div><div class="n" :style="{ color: counts.failed ? 'var(--c-bad)' : undefined }">{{ counts.failed }}</div></div>
+      <div class="card card-pad stat"><div class="muted">运行中</div><div class="n" style="color: var(--signal)">{{ counts.running }}</div></div>
+      <div class="card card-pad stat"><div class="muted">已完成</div><div class="n" style="color: var(--teal)">{{ counts.completed }}</div></div>
+      <div class="card card-pad stat"><div class="muted">失败</div><div class="n" :style="{ color: counts.failed ? 'var(--danger)' : undefined }">{{ counts.failed }}</div></div>
     </div>
 
     <div class="card" style="overflow: hidden">
@@ -154,6 +154,6 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
 
 <style scoped>
 .stat { padding: 16px 20px; }
-.n { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.n { font-family: var(--font-display); font-size: 30px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .hl { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
 </style>

@@ -127,10 +127,10 @@ const price = (m: ModelEndpoint) => (m.price_input_per_mtok == null ? '未填写
 
 <style scoped>
 .model { transition: box-shadow 0.15s, transform 0.15s; }
-.model:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(20, 24, 40, 0.08); }
-.status { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--c-code); font-size: 13.5px; cursor: pointer; }
-.status.good { background: var(--c-good-soft); color: var(--c-good); }
-.status.bad { background: var(--c-bad-soft); color: var(--c-bad); }
-.warn { color: var(--c-warn); }
+.model:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+.status { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: var(--radius-md); background: var(--surface-2); font-size: 13.5px; cursor: pointer; }
+.status.good { background: var(--teal-soft); color: var(--teal); }
+.status.bad { background: var(--danger-soft); color: var(--danger); }
+.warn { color: var(--amber); }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

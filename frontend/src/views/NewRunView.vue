@@ -62,7 +62,7 @@ const money = (c: number) => c.toFixed(c < 0.1 ? 4 : 2)
 const askToConfirm = (details: string[]) => new Promise<boolean>((resolve) => {
   Modal.confirm({
     title: '预计会超出费用上限',
-    content: h('div', [h('ul', { style: 'padding-left: 18px; margin: 8px 0' }, details.map((d) => h('li', d))), h('div', { style: 'color: #888' }, '仍然提交的话，运行中如果实际用量超限，任务还是会被自动停止。')]),
+    content: h('div', [h('ul', { style: 'padding-left: 18px; margin: 8px 0' }, details.map((d) => h('li', d))), h('div', { style: 'color: var(--ink-muted)' }, '仍然提交的话，运行中如果实际用量超限，任务还是会被自动停止。')]),
     okText: '仍然提交', cancelText: '取消', onOk: () => resolve(true), onCancel: () => resolve(false),
   })
 })
@@ -199,7 +199,7 @@ const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning
 <style scoped>
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
 .block { margin-bottom: 16px; }
-.step { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--c-primary-soft); color: var(--c-primary); align-items: center; justify-content: center; font-size: 13px; margin-right: 10px; }
+.step { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--signal-soft); color: var(--signal); align-items: center; justify-content: center; font-size: 13px; margin-right: 10px; }
 .field { margin-bottom: 18px; }
 .summary { position: sticky; top: 16px; }
 .big { font-size: 34px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; }

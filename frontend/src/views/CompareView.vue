@@ -292,12 +292,12 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
         <div v-for="row in rows" :key="`${row.subset}-${row.idx}`" class="qrow">
           <div class="qhead">
             <span class="muted">{{ subsetOptions.length > 1 ? row.subset + ' · ' : '' }}#{{ row.idx }}</span>
-            <span v-if="row.target != null" class="faint">标准答案 <b class="mono" style="color: var(--c-good)">{{ row.target }}</b></span>
+            <span v-if="row.target != null" class="faint">标准答案 <b class="mono" style="color: var(--teal)">{{ row.target }}</b></span>
           </div>
           <div class="qbody">
             <div v-if="imgs(row).length" style="flex: none; width: 170px">
               <a-image-preview-group>
-                <template v-for="x in imgs(row)" :key="x.k"><a-image :src="mediaUrl(row.media_run_id, { id: row.media_sample_id, media: row.media }, x.k)" :width="170" style="border-radius: 8px; margin-bottom: 6px; display: block" /></template>
+                <template v-for="x in imgs(row)" :key="x.k"><a-image :src="mediaUrl(row.media_run_id, { id: row.media_sample_id, media: row.media }, x.k)" :width="170" style="border-radius: var(--radius-sm); margin-bottom: 6px; display: block" /></template>
               </a-image-preview-group>
             </div>
             <div style="flex: 1; min-width: 0">
@@ -327,30 +327,30 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 .runchip { padding: 14px 16px; transition: transform 0.15s; }
 .runchip:hover { transform: translateY(-2px); }
 .big { font-family: var(--font-display); font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
-.sect { font-size: 12px; color: var(--c-text-3); text-transform: none; margin-bottom: 2px; }
+.sect { font-size: 12px; color: var(--ink-muted); text-transform: none; margin-bottom: 2px; }
 .cellv { font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 6px; }
-.win { background: var(--c-good-soft); color: var(--c-good); font-weight: 650; padding: 2px 8px; border-radius: 6px; }
-.qrow { border: 1px solid var(--c-border); border-radius: 12px; margin-top: 14px; overflow: hidden; }
-.qhead { display: flex; justify-content: space-between; padding: 9px 16px; background: var(--c-code); font-size: 13px; }
+.win { background: var(--signal-soft); color: var(--signal); font-weight: 650; padding: 2px 8px; border-radius: 6px; }
+.qrow { border: 1px solid var(--line); border-radius: var(--radius-md); margin-top: 14px; overflow: hidden; }
+.qhead { display: flex; justify-content: space-between; padding: 9px 16px; background: var(--surface-2); font-size: 13px; }
 .qbody { display: flex; gap: 16px; padding: 14px 16px; }
 .qtext { font-size: 13.5px; max-height: 110px; overflow: auto; margin-bottom: 10px; line-height: 1.6; }
 .answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
-.ans { border: 1px solid var(--c-border); border-left-width: 4px; border-radius: 10px; padding: 8px 12px; background: var(--c-card); }
-.ans.good { border-left-color: var(--c-good); background: var(--c-good-soft); }
-.ans.bad { border-left-color: var(--c-bad); background: var(--c-bad-soft); }
-.ans.warn { border-left-color: var(--c-warn); }
+.ans { border: 1px solid var(--line); border-left-width: 4px; border-radius: var(--radius-md); padding: 8px 12px; background: var(--surface); }
+.ans.good { border-left-color: var(--teal); background: var(--teal-soft); }
+.ans.bad { border-left-color: var(--danger); background: var(--danger-soft); }
+.ans.warn { border-left-color: var(--amber); }
 .atext { font-size: 13px; margin-top: 4px; max-height: 120px; overflow: auto; line-height: 1.55; }
-.vtag { font-size: 12px; padding: 0 8px; border-radius: 10px; background: var(--c-code); color: var(--c-text-2); }
-.vtag.good { background: var(--c-good); color: #fff; }
-.vtag.bad { background: var(--c-bad); color: #fff; }
-.vtag.warn { background: var(--c-warn); color: #fff; }
+.vtag { font-size: 12px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-muted); }
+.vtag.good { background: var(--teal-soft); color: var(--teal); }
+.vtag.bad { background: var(--danger-soft); color: var(--danger); }
+.vtag.warn { background: var(--amber-soft); color: var(--amber); }
 .crow { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .crow.dim { opacity: .75; }
-.rk { width: 22px; height: 22px; border-radius: 50%; background: var(--c-primary); color: #fff; font-size: 12px; display: grid; place-items: center; flex: none; }
-.crow.dim .rk { background: var(--c-border); color: var(--c-text-2); }
+.rk { width: 22px; height: 22px; border-radius: 50%; background: var(--signal); color: var(--on-signal); font-size: 12px; font-family: var(--font-display); display: grid; place-items: center; flex: none; }
+.crow.dim .rk { background: var(--line); color: var(--ink-muted); }
 .mn { width: 170px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.track { flex: 1; height: 12px; border-radius: 99px; background: var(--c-border); overflow: hidden; }
-.fill { height: 100%; border-radius: 99px; background: var(--c-primary); }
+.track { flex: 1; height: 12px; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; }
+.fill { height: 100%; border-radius: var(--radius-pill); background: var(--signal); }
 .sc { font-family: var(--font-display); width: 56px; text-align: right; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .why { font-size: 13px; cursor: pointer; flex: none; }
 @media (max-width: 900px) { .qbody { flex-direction: column; } }

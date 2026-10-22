@@ -147,7 +147,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         </div>
         <div class="row" style="gap: 12px; flex-wrap: wrap">
           <div v-for="k in ['latency_mean', 'input_tokens_mean', 'output_tokens_mean']" :key="k" class="hero-stat">
-            <div class="muted" style="font-size: 12px">{{ perf[k]?.label }}</div><div style="font-size: 20px; font-weight: 650">{{ num(perf[k]) }}</div>
+            <div class="muted" style="font-size: 12px">{{ perf[k]?.label }}</div><div class="num" style="font-size: 20px; font-weight: 650">{{ num(perf[k]) }}</div>
           </div>
         </div>
       </div>
@@ -200,7 +200,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         <a-empty v-if="!samples.length" description="没有符合条件的样本" class="card card-pad" style="padding: 48px 0" />
 
         <div v-for="s in samples" :key="s.id" class="card verdict" :class="verdict(s)[0]" style="margin-bottom: 14px; overflow: hidden">
-          <div class="row-between" style="padding: 12px 20px; border-bottom: 1px solid var(--c-border)">
+          <div class="row-between" style="padding: 12px 20px; border-bottom: 1px solid var(--line)">
             <div class="row"><a-tag :color="verdict(s)[0] === 'good' ? 'success' : verdict(s)[0] === 'bad' ? 'error' : verdict(s)[0] === 'warn' ? 'warning' : 'default'" style="margin: 0">{{ verdict(s)[1] }}</a-tag>
               <a-tooltip v-if="source(s)" :title="s.review_correct !== null ? `引擎判的是：${s.is_correct ? '答对' : '答错'}${s.review_note ? '；备注：' + s.review_note : ''}` : s.auto_reason"><a-tag color="processing" style="margin: 0">{{ source(s) }}</a-tag></a-tooltip>
               <span class="muted">{{ subsets.length > 1 ? s.subset + ' · ' : '' }}#{{ s.idx }}</span></div>
@@ -227,7 +227,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
               </div>
               <a-collapse v-if="s.judge_output" ghost style="margin-top: 8px"><a-collapse-panel key="j" header="裁判输出"><div class="pre" style="font-size: 13px">{{ s.judge_output }}</div></a-collapse-panel></a-collapse>
               <div v-if="s.scores && Object.keys(s.scores).length" class="faint mono" style="margin-top: 10px">{{ pretty(s.scores).replace(/\n/g, ' ') }}</div>
-              <div v-if="s.error" style="color: var(--c-bad); margin-top: 6px">错误：{{ s.error }}</div>
+              <div v-if="s.error" style="color: var(--danger); margin-top: 6px">错误：{{ s.error }}</div>
               <div v-if="!s.error" class="review">
                 <span class="faint">人工复核</span>
                 <a-button size="small" :type="s.review_correct === true ? 'primary' : 'default'" @click="review(s, s.review_correct === true ? null : true)">判对</a-button>
@@ -264,10 +264,10 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
 
 <style scoped>
 .title { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
-.hero-value { font-family: var(--font-display); font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; }
-.hero-stat { background: rgba(255, 255, 255, 0.14); border-radius: 12px; padding: 10px 16px; min-width: 120px; backdrop-filter: blur(4px); }
-.adj { margin-top: 6px; display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); cursor: help; }
-.review { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--c-border); flex-wrap: wrap; }
+.hero-value { color: var(--signal); font-family: var(--font-display); font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.hero-stat { background: var(--surface-2); border-radius: var(--radius-md); padding: 10px 16px; min-width: 120px; }
+.adj { margin-top: 6px; display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--line); cursor: help; }
+.review { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); flex-wrap: wrap; }
 .sample-body { display: flex; gap: 20px; padding: 16px 20px; }
 .media { flex: none; width: 220px; }
 .q { font-size: 14px; max-height: 140px; overflow: auto; margin-bottom: 12px; line-height: 1.6; }
