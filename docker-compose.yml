@@ -1,17 +1,41 @@
 # docker compose up -d --build   ->  http://localhost:8000
 # More workers: docker compose up -d --scale worker=3  (or WORKER_CONCURRENCY=3 for one process, several runs)
-# The key that encrypts saved model API keys lives in the data volume (secret.key). Back it up together with app.db.
+# The key that encrypts saved model API keys lives in the data volume (secret.key). Back it up together with the database (the `pgdata` volume).
+# Set POSTGRES_PASSWORD in your shell or a .env file next to this one; the default below is only fine for a local machine.
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://benchmark:${POSTGRES_PASSWORD:-benchmark}@db:5432/model_benchmark
+
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchmark}
+      POSTGRES_DB: model_benchmark
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d model_benchmark"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
   api:
     build: .
     ports: ["8000:8000"]
+    environment: *app-env
     volumes: ["data:/data"]
+    depends_on:
+      db: {condition: service_healthy}
     restart: unless-stopped
   worker:
     build: .
     command: ["python", "-m", "app.worker"]
+    environment: *app-env
     volumes: ["data:/data"]
+    depends_on:
+      db: {condition: service_healthy}
     stop_grace_period: 30s   # lets a stopping worker hand its runs back to the queue
     restart: unless-stopped
 volumes:
   data:
+  pgdata:

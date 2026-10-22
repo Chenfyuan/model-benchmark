@@ -6,7 +6,8 @@ from pathlib import Path
 # Must happen before any `app` import: isolated data dir + database for the whole test session.
 _tmp = tempfile.mkdtemp(prefix="mb-test-")
 os.environ["APP_DATA_DIR"] = _tmp
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
+# SQLite by default; TEST_DATABASE_URL runs the suite on another database (it is DROPPED and recreated per test: point it at a throwaway one).
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{_tmp}/test.db"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 

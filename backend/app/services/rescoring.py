@@ -14,7 +14,7 @@ import re
 import unicodedata
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from ..models import Run, RunMetric, SampleResult
@@ -175,6 +175,6 @@ def reviewed_counts(db: Session, run_ids: list[int]) -> dict[int, tuple[int, int
     """(lenient upgrades, manual reviews) per run, for list pages."""
     if not run_ids:
         return {}
-    q = select(SampleResult.run_id, func.sum(SampleResult.auto_correct.is_not(None)), func.sum(SampleResult.review_correct.is_not(None))) \
+    q = select(SampleResult.run_id, func.sum(case((SampleResult.auto_correct.is_not(None), 1), else_=0)), func.sum(case((SampleResult.review_correct.is_not(None), 1), else_=0))) \
         .where(SampleResult.run_id.in_(run_ids)).group_by(SampleResult.run_id)
     return {rid: (int(a or 0), int(m or 0)) for rid, a, m in db.execute(q)}

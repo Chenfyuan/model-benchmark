@@ -36,6 +36,7 @@ e2e/                    Playwright 浏览器测试（真实页面 + 接口 + 灌
 cd backend && source .venv/bin/activate
 uvicorn app.main:app --reload --port 8000   # API（改代码自动重载）
 python -m app.worker                        # Worker：改了代码要手动重启，它不会自动重载
+./scripts/dev.sh                            # 或者：读 .env（见 .env.example），一次起 API + Worker
 pytest                                      # 后端测试，不需要网络和真实模型
 cd frontend && npm run dev                  # http://localhost:5173，/api 代理到 8000
 cd frontend && npm run build                # 含 vue-tsc 类型检查；e2e 需要先 build
@@ -64,7 +65,7 @@ python -m pytest e2e                        # 浏览器测试；沙箱里用 CHR
 - SIGTERM 会把手上的任务放回队列。丢了任务所有权的 Worker 会停手且不写结果。
 - 费用上限：提交时估算超限需确认；运行中增量扫描 predictions 文件统计用量，超限就杀引擎。已知的小误差：停止瞬间在途的请求（≤并发数）服务商已计费但没记录。
 
-**数据库**：SQLite（WAL）为主，`DATABASE_URL` 可换 PostgreSQL（**没测过**）。迁移只支持**新增可空列**（`db.ensure_columns()`），新表靠 `create_all`；改列类型、加 NOT NULL 列要自己写迁移。
+**数据库**：SQLite（WAL）默认，`DATABASE_URL` 可换 PostgreSQL（本机跑过：后端测试在两种库上结果一致；写查询别用 `sum(布尔)`，Postgres 不支持，用 `case`）。`TEST_DATABASE_URL` 让 pytest 跑在别的库上（**每个测试都会 drop 再建表**，只指向一次性的库）。迁移只支持**新增可空列**（`db.ensure_columns()`），新表靠 `create_all`；改列类型、加 NOT NULL 列要自己写迁移。
 
 **密钥**：模型 API key 用 Fernet 加密入库（`secret.key`，丢了就解不开），接口永远不返回 key，只通过子进程环境变量传给引擎，错误信息和日志会 redact。报告、日志、截图里**不能出现 key 和接口地址**。
 
@@ -92,7 +93,7 @@ python -m pytest e2e                        # 浏览器测试；沙箱里用 CHR
 
 - **真实网关上验证过**：两种协议（OpenAI / Anthropic）的接入和连通测试；自有的看图选择题（zip 带图）、工具调用、开放问答（裁判模型）；内置的 ChartQA、DocVQA、MMBench、AI2D、OCRBench、MMStar、SEED-Bench-2-Plus、RealWorldQA、ToolBench-Static、CharXiv、InfoVQA（每个只跑几题，页面上标“已跑通”）；多模型并行、超限停止后续跑不重复计费；宽松匹配；工具调用参数检查。
 - **只用本地模拟验证过**：服务商持续 503/429 时的自动续跑、Worker 被 kill -9 后接手、SIGTERM 优雅退出、TSV 导入。
-- **没验证过**：VQAv2 和 MMMU（数据集下载太慢）、视频/音频（没做）、Docker 部署和 `--scale worker`（环境里没有 Docker 服务）、GitHub Actions（没触发过）、PostgreSQL、全量跑公开基准、其他服务商的 OpenAI 兼容接口、Windows/macOS。
+- **没验证过**：VQAv2 和 MMMU（数据集下载太慢）、视频/音频（没做）、Docker 部署和 `--scale worker`（环境里没有 Docker 服务）、GitHub Actions（没触发过）、docker-compose 里的 Postgres（只校验过配置语法，没构建）、全量跑公开基准、其他服务商的 OpenAI 兼容接口、Windows/macOS。
 
 ## 还没做的
 
@@ -101,3 +102,15 @@ python -m pytest e2e                        # 浏览器测试；沙箱里用 CHR
 ## 凭据
 
 真实网关的地址和 key **绝对不要写进仓库、文档、截图、日志或提交说明**。在本机用时在“模型管理”里手动填，或放在仓库之外的文件里。
+
+## 设计系统（Heng 衡）
+
+前端 UI 统一遵循仓库里的 `design-system/`。**改任何界面之前先读 `design-system/README.md`（设计原则）和 `design-system/VUE.md`（怎么映射到本项目的 Vue / Ant Design Vue / ECharts）。**
+
+- 颜色、间距、圆角、阴影、字体只用 `design-system/tokens.css` 的 CSS 变量（`var(--signal)`、`var(--space-4)`、`var(--radius-lg)`、`var(--font-mono)`…），不要新增硬编码色值；Ant Design Vue 的 ConfigProvider 读不了 CSS 变量，按 VUE.md 第 2 节写字面值。旧的 `--c-*` 变量按 VUE.md 的对照表迁移。
+- `--signal`（青柠）每个页面只给最重要的一件事：主按钮、第一名、运行中。深色模式主按钮文字必须是 `--on-signal`（设 `colorTextLightSolid`），不能是白字。
+- 图表多序列配色顺序固定 signal → coral → teal → amber，超过 4 个用灰色，不加新色相。
+- 动效用 `design-system/bundle.css` 的 `--hg-ease` / `--hg-spring` 和时长；动画只用来解释变化（数字滚动、排名重排、进度推进），必须尊重 `prefers-reduced-motion`。
+- `design-system/bundle.js` 是 React 参考实现，**只读不引入**；本项目组件用 Vue 3 + TS 重写，通用小组件放 `frontend/src/components/ds/`。
+- `design-system/demo.html`、`screenshots/` 里的首页是视觉参考，数据是虚构的，里面的对战竞技场、GPU 配额、实时日志、搜索框本平台都没有——**不要因为设计稿里有就加功能**，页面和功能以现有 8 个 views 为准。
+- 两种主题（`data-theme="dark"|"light"`）都要验收；界面文字仍然是中文。

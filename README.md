@@ -82,7 +82,7 @@
 ```
 
 - **前端**：Vue 3 + TypeScript + [Ant Design Vue](https://antdv.com) 4 + ECharts，浅色 / 深色两套主题，构建后由后端直接托管。
-- **后端**：FastAPI + SQLAlchemy。数据库默认 SQLite（单机够用），换 PostgreSQL 只需改 `DATABASE_URL`。
+- **后端**：FastAPI + SQLAlchemy。数据库默认 SQLite（单机够用），换 PostgreSQL 只需改 `DATABASE_URL`（后端测试在两种库上都跑过）。Docker 部署默认用 PostgreSQL。
 - **Worker**：独立进程，从数据库里取排队的任务，在子进程里调用评测引擎；取消时终止整个进程组；启动时把上次崩溃遗留的“运行中”任务重新排队。
 - **引擎适配器**：平台只通过 `backend/app/engines/base.py` 里的 `EngineAdapter`（`prepare` / `progress` / `collect`）和引擎打交道。引擎的输出会被转成平台自己的表结构，所以**换引擎或升级引擎不需要改 API、表结构和前端**。
 - **Anthropic 格式**：EvalScope 自带 `anthropic_api` 模式，所以不需要额外的格式转换网关。
@@ -179,7 +179,7 @@ docker compose up -d --scale worker=3          # Docker：3 个 Worker 进程
 - **服务商卡住（不报错也不返回）**：评测阶段超过 `STALL_TIMEOUT_SEC`（默认 20 分钟）没有任何新的回答，就终止并按上面的规则自动重试，不用等 6 小时的总时限。下载数据阶段不受这个限制（首次下载大数据集本来就慢）。
 - **正常停止 Worker**（`SIGTERM` / `Ctrl+C`，`docker stop`）：它不再领新任务，停掉手上的评测，把任务放回队列，下一个 Worker 接着跑。
 - 任务页顶部显示在线的 Worker 数；有任务排队但没有 Worker 在线时会提示。
-- 领任务靠数据库里的一条原子更新，不会被两个 Worker 同时领走；“同一个模型的并行上限”在 SQLite 下是严格的，换成 PostgreSQL 时在极端并发下可能短暂多放过一个（PostgreSQL 本来也没测过）。
+- 领任务靠数据库里的一条原子更新，不会被两个 Worker 同时领走；“同一个模型的并行上限”在 SQLite 下是严格的，换成 PostgreSQL 时在极端并发下可能短暂多放过一个（这条并发路径没有专门压测过）。
 
 ## Docker 部署
 
@@ -187,7 +187,7 @@ docker compose up -d --scale worker=3          # Docker：3 个 Worker 进程
 docker compose up -d --build     # 打开 http://localhost:8000
 ```
 
-`api` 和 `worker` 两个服务共用一个数据卷（数据库、加密密钥、评测集、结果）；`docker compose up -d --scale worker=3` 可以开多个 Worker。数据卷里的 `secret.key` 要和 `app.db` 一起备份。注意：这份 Docker 配置写好了，但我没能在开发环境里构建验证（环境里没有 Docker 服务），第一次用请留意。
+`db`（PostgreSQL 16）、`api`、`worker` 三个服务；`api` 和 `worker` 共用数据卷 `data`（加密密钥、评测集、结果），数据库在 `pgdata` 卷里。密码用 `POSTGRES_PASSWORD` 设置（默认 `benchmark`，只适合本机）。`docker compose up -d --scale worker=3` 可以开多个 Worker。`data` 卷里的 `secret.key` 要和数据库（`pgdata` 卷）一起备份。注意：这份 Docker 配置只校验过语法（`docker compose config`），没有完整构建和启动过，第一次用请留意。
 
 仓库带了 GitHub Actions（`.github/workflows/ci.yml`）：后端测试，前端类型检查加构建。
 
@@ -197,6 +197,7 @@ docker compose up -d --build     # 打开 http://localhost:8000
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
+| `TEST_DATABASE_URL` | 未设置（测试用临时 SQLite） | 仅 pytest 使用：让后端测试跑在别的库上。**每个测试都会 drop 再建表**，只能指向一次性的库 |
 | `APP_DATA_DIR` | `backend/data` | 数据目录：数据库、加密密钥、上传的评测集、每次评测的输出（已在 `.gitignore` 里） |
 | `DATABASE_URL` | `sqlite:///<数据目录>/app.db` | SQLAlchemy 连接串，换 PostgreSQL 时修改 |
 | `APP_SECRET_KEY` | 自动生成到 `<数据目录>/secret.key`（权限 600） | 加密模型 API key 的 Fernet 密钥。**丢了它，已保存的 key 就解不开了** |
@@ -260,6 +261,8 @@ CLAUDE.md              开发者上手说明（项目决定、设计、约定、
 
 ```bash
 cd backend && pytest             # 后端测试，不需要网络和真实模型
+cd backend && TEST_DATABASE_URL=postgresql+psycopg://user:pw@127.0.0.1:5433/test_db pytest   # 同一套测试跑在 PostgreSQL 上
+./scripts/dev.sh                 # 读 .env（模板见 .env.example），一次起 API 和 Worker
 cd frontend && npm run build     # 含 vue-tsc 类型检查
 pip install -r e2e/requirements.txt && playwright install chromium
 python -m pytest e2e             # 浏览器测试：真实的页面 + 接口，用灌好的数据，不调用模型（需要先 npm run build）
