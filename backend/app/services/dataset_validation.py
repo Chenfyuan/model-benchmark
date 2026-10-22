@@ -143,8 +143,17 @@ def ingest_upload(kind: str, filename: str, raw: bytes, dest: Path, max_mb: int)
             text, base = jsonls[0].read_text(encoding="utf-8"), jsonls[0].parent
         elif filename.lower().endswith(".jsonl"):
             text, base = raw.decode("utf-8"), dest
+        elif filename.lower().endswith((".tsv", ".csv")):
+            from .tsv_import import convert
+
+            if kind == "fc":
+                raise DatasetError(["工具调用数据集不支持表格格式，请用 .jsonl"])
+            converted, got = convert(raw.decode("utf-8-sig"))
+            if got != kind:
+                raise DatasetError([f"表格内容是{'选择题（有 A/B/C… 选项列）' if got == 'vmcq' else '开放问答（没有选项列）'}，请把类型改成 {got}"])
+            text, base = "\n".join(json.dumps(r, ensure_ascii=False) for r in converted), dest
         else:
-            raise DatasetError(["只支持 .jsonl 或 .zip 文件"])
+            raise DatasetError(["只支持 .jsonl、.zip，或 VLMEvalKit 的 .tsv / .csv 文件"])
 
         rows: list[dict] = []
         errors: list[str] = []

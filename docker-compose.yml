@@ -1,0 +1,15 @@
+# docker compose up -d --build   ->  http://localhost:8000
+# The key that encrypts saved model API keys lives in the data volume (secret.key). Back it up together with app.db.
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    volumes: ["data:/data"]
+    restart: unless-stopped
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    volumes: ["data:/data"]
+    restart: unless-stopped
+volumes:
+  data:

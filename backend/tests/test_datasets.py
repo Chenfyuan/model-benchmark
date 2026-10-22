@@ -95,3 +95,44 @@ def test_delete_dataset_in_use_conflicts(client, model, vmcq_dataset):
     assert client.delete(f"/api/v1/datasets/{vmcq_dataset['id']}").status_code == 409
     builtin = client.get("/api/v1/datasets", params={"source": "builtin"}).json()[0]
     assert client.delete(f"/api/v1/datasets/{builtin['id']}").status_code == 409
+
+
+# ---- VLMEvalKit TSV import -------------------------------------------------------------------------------------------
+PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=="
+
+
+def _tsv(header: list[str], rows: list[list[str]]) -> bytes:
+    return "\n".join("\t".join(r) for r in [header, *rows]).encode()
+
+
+def test_tsv_multiple_choice_with_shared_image(tmp_path):
+    tsv = _tsv(["index", "question", "hint", "A", "B", "C", "answer", "category", "image"], [
+        ["0", "Which colour?", "Look carefully.", "red", "blue", "", "B", "colour", PNG_B64],
+        ["1000000", "And this?", "nan", "x", "y", "z", "c", "colour", "0"],  # image given as a reference to row 0
+    ])
+    n = ingest_upload("vmcq", "mmb.tsv", tsv, tmp_path / "d", 5)
+    rows = [json.loads(line) for line in (tmp_path / "d" / "data.jsonl").read_text().splitlines()]
+    assert n == 2
+    assert rows[0]["options"] == ["red", "blue"] and rows[0]["answer"] == "B"
+    assert rows[0]["question"].startswith("<image 1> Look carefully.\nWhich colour?")
+    assert rows[0]["image_1"].startswith("data:image/png;base64,") and rows[1]["image_1"] == rows[0]["image_1"]
+    assert rows[1]["answer"] == "C" and rows[1]["category"] == "colour"
+
+
+def test_tsv_without_options_becomes_vqa(tmp_path):
+    ingest_upload("vqa", "q.csv", f"question,answer,image\nWhat is it?,cat,{PNG_B64}\n".encode(), tmp_path / "d", 5)
+    row = json.loads((tmp_path / "d" / "data.jsonl").read_text())
+    parts = row["messages"][0]["content"]
+    assert row["answer"] == "cat" and parts[0]["type"] == "image_url" and parts[1]["text"] == "What is it?"
+
+
+def test_tsv_kind_mismatch_and_missing_columns(tmp_path):
+    with pytest.raises(DatasetError, match="改成 vmcq"):
+        ingest_upload("vqa", "a.tsv", _tsv(["question", "A", "B", "answer"], [["q", "x", "y", "A"]]), tmp_path / "a", 5)
+    with pytest.raises(DatasetError, match="question 和 answer"):
+        ingest_upload("vmcq", "b.tsv", _tsv(["q", "a"], [["1", "2"]]), tmp_path / "b", 5)
+    with pytest.raises(DatasetError, match="不支持表格"):
+        ingest_upload("fc", "c.tsv", _tsv(["question", "answer"], [["1", "2"]]), tmp_path / "c", 5)
+    # the row validator still applies to converted rows: answer D is outside the two options
+    with pytest.raises(DatasetError, match="超出选项范围"):
+        ingest_upload("vmcq", "d.tsv", _tsv(["question", "A", "B", "answer"], [["q", "x", "y", "D"]]), tmp_path / "d", 5)

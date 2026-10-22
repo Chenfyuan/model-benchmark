@@ -137,10 +137,10 @@ const columns = [
         <a-form-item label="能力（可选）" name="capability"><a-select v-model:value="form.capability" allow-clear placeholder="用于分组" :options="Object.entries(CAPABILITY_LABEL).map(([value, label]) => ({ value, label }))" /></a-form-item>
         <a-form-item label="说明（可选）" name="description"><a-input v-model:value="form.description" /></a-form-item>
         <a-form-item label="文件">
-          <a-upload-dragger :before-upload="beforeUpload" :max-count="1" accept=".jsonl,.zip" :show-upload-list="true" @remove="file = null">
+          <a-upload-dragger :before-upload="beforeUpload" :max-count="1" accept=".jsonl,.zip,.tsv,.csv" :show-upload-list="true" @remove="file = null">
             <p class="ant-upload-drag-icon"><InboxOutlined /></p>
             <p class="ant-upload-text">点击或拖拽文件到这里</p>
-            <p class="ant-upload-hint">.jsonl；带本地图片 / 视频时打包成 .zip（里面一个 .jsonl，媒体用相对路径引用）</p>
+            <p class="ant-upload-hint">.jsonl，或 VLMEvalKit 的 .tsv / .csv（图片是 base64 列）；带本地图片 / 视频时打包成 .zip（里面一个 .jsonl，媒体用相对路径引用）</p>
           </a-upload-dragger>
         </a-form-item>
       </a-form>
