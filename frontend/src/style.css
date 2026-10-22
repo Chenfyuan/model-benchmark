@@ -19,6 +19,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 * { box-sizing: border-box; }
 
 .page { max-width: 1280px; margin: 0 auto; padding: 8px 32px 48px; }
+/* narrow pages keep the standard column (so they line up with the top bar) and only limit the width of their blocks, left-aligned */
+.page.narrow > * { max-width: var(--col); }
 .muted { color: var(--ink-muted); }
 .faint { color: var(--ink-muted); }
 .mono { font-family: var(--font-mono); font-size: 12.5px; }
