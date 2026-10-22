@@ -33,7 +33,7 @@ from .engines import get_adapter
 from .engines.base import Endpoint, EngineAdapter, ParsedResult, RunContext, Usage
 from .models import ModelEndpoint, Run, RunMetric, SampleResult, Worker, utcnow
 from .services.rescoring import apply_lenient, load_dataset_rows
-from .services.tool_check import apply_tool_check
+from .services.tool_check import apply_tool_check, ensure_pass_rate
 from .services.budget import check as check_budget
 from .services.budget import get_budget, month_usage, run_cost
 
@@ -119,6 +119,9 @@ def save_results(run_id: int, parsed: ParsedResult) -> None:
             apply_tool_check(parsed.samples, load_dataset_rows(ds.path))  # expectations in the dataset, if any: argument values
         for s in parsed.samples:
             db.add(SampleResult(run_id=run_id, **s))
+        if ds.kind == "fc":
+            db.flush()
+            ensure_pass_rate(db, run_id)
         db.execute(update(Run).where(Run.id == run_id).values(engine_version=parsed.engine_version))
         db.commit()
 

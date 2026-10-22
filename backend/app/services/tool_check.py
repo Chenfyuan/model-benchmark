@@ -137,6 +137,33 @@ def _user_text(row: dict) -> str:
     return ""
 
 
+def ensure_pass_rate(db, run_id: int) -> None:
+    """Give a custom tool-call run a headline that means something: the share of samples whose call passed.
+
+    The engine's own main metric for these datasets is an F1 over "should a tool be called at all", which is 100 % even when a
+    call is malformed or has wrong arguments, and which cannot be recomputed after the platform's argument check or a manual
+    review. The pass rate is a plain mean of the per-sample scores, so the adjusted score works on it. Idempotent.
+    """
+    from sqlalchemy import delete, select, update
+
+    from ..models import RunMetric, SampleResult
+
+    db.execute(delete(RunMetric).where(RunMetric.run_id == run_id, RunMetric.key == "pass_rate"))
+    by_sub: dict[str, list[float]] = {}
+    for sub, score in db.execute(select(SampleResult.subset, SampleResult.score).where(SampleResult.run_id == run_id)):
+        if score is not None:
+            by_sub.setdefault(sub, []).append(score)
+    if not by_sub:
+        return
+    db.execute(update(RunMetric).where(RunMetric.run_id == run_id, RunMetric.primary.is_(True)).values(primary=False))
+    allv = [v for vs in by_sub.values() for v in vs]
+    fields = dict(kind="quality", key="pass_rate", label="通过率", display_multiplier=100.0, display_unit="%", precision=1, direction="higher_is_better")
+    db.add(RunMetric(run_id=run_id, subset="OVERALL", value=sum(allv) / len(allv), num=len(allv), primary=True, **fields))
+    for sub, vs in by_sub.items():
+        if sub:
+            db.add(RunMetric(run_id=run_id, subset=sub, value=sum(vs) / len(vs), num=len(vs), primary=False, **fields))
+
+
 def apply_tool_check(samples: list, dataset_rows: list[dict]) -> int:
     """Set auto_correct (False = argument check failed), auto_reason, target, final_correct on fc samples (ORM rows or dicts).
 

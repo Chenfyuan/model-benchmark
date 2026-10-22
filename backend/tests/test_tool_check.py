@@ -112,11 +112,9 @@ def test_adjusted_score_and_filters_count_the_downgrades(client, fc_run):
     collect(fc_run, [[CALL(city="Paris")], [CALL(city="Kyoto")], [CALL(city="Cairo")], None])
     with SessionLocal() as db:
         db.execute(update(Run).where(Run.id == fc_run).values(status="completed"))
-        db.add(RunMetric(run_id=fc_run, kind="quality", key="pass", label="Pass", subset="OVERALL", value=1.0, num=4,
-                         display_multiplier=100.0, display_unit="%", precision=1, direction="higher_is_better", primary=True))
         db.commit()
     r = client.get(f"/api/v1/runs/{fc_run}").json()
-    assert r["headline"]["display"] == "100.0%" and r["adjusted"]["display"] == "75.0%"
+    assert r["headline"]["label"] == "通过率" and r["headline"]["display"] == "100.0%" and r["adjusted"]["display"] == "75.0%"
     assert r["adjusted"]["n_args"] == 1 and r["adjusted"]["n_lenient"] == 0
     assert client.get(f"/api/v1/runs/{fc_run}/samples", params={"correct": "false"}).json()["total"] == 1
     assert client.get(f"/api/v1/runs/{fc_run}/samples", params={"correct": "changed"}).json()["total"] == 1
@@ -152,3 +150,31 @@ def test_upload_accepts_and_rejects_expectations(client, tmp_path):
     assert ok == 1
     with pytest.raises(DatasetError, match="不在 tools 里"):
         ingest_upload("fc", "t.jsonl", json.dumps(row(expected_calls=[{"name": "x", "arguments": {}}])).encode(), tmp_path / "bad", 5)
+
+
+def test_tool_call_runs_get_a_pass_rate_headline_in_place_of_the_engines_f1(client, fc_run):
+    from app.models import Run, RunMetric
+    from sqlalchemy import update
+
+    parsed = _parsed([(None, None)] * 4)
+    qs = ["weather in Paris?", "weather in Tokyo?", "weather in Cairo?", "hello"]
+    for i, s in enumerate(parsed.samples):
+        s.update(question=qs[i], is_correct=i != 2, score=float(i != 2), target=None, prediction=None, tool_calls=[CALL(city="Paris")] if i < 3 else None)
+    parsed.metrics = [dict(kind="quality", key="tool_call_f1", label="F1", subset="OVERALL", value=1.0, num=4, display_multiplier=100.0, display_unit="%",
+                           precision=1, direction="higher_is_better", primary=True)]  # what EvalScope reports: 100 % although a call failed
+    save_results(fc_run, parsed)
+    with SessionLocal() as db:
+        db.execute(update(Run).where(Run.id == fc_run).values(status="completed"))
+        db.commit()
+    head = client.get(f"/api/v1/runs/{fc_run}").json()["headline"]
+    assert head["label"] == "通过率" and head["display"] == "75.0%"
+    ms = {(m["key"], m["subset"]): m for m in client.get(f"/api/v1/runs/{fc_run}/metrics").json()}
+    assert ms[("tool_call_f1", "OVERALL")]["primary"] is False and ms[("pass_rate", "OVERALL")]["primary"] is True  # F1 is kept, as a secondary metric
+    save_results(fc_run, parsed)  # collecting again must not duplicate it
+    assert len([m for m in client.get(f"/api/v1/runs/{fc_run}/metrics").json() if m["key"] == "pass_rate" and m["subset"] == "OVERALL"]) == 1
+    # the argument check (Tokyo asked, Paris called) already lowers the reviewed score: 3 of 4 engine passes -> 2 of 4
+    assert client.get(f"/api/v1/runs/{fc_run}").json()["adjusted"]["display"] == "50.0%"
+    # and a person's decision moves it again (sample 2: engine said fail, accepted by hand -> 3 of 4)
+    s = [x for x in client.get(f"/api/v1/runs/{fc_run}/samples").json()["items"] if x["idx"] == 2][0]
+    client.put(f"/api/v1/runs/{fc_run}/samples/{s['id']}/review", json={"correct": True})
+    assert client.get(f"/api/v1/runs/{fc_run}").json()["adjusted"]["display"] == "75.0%"

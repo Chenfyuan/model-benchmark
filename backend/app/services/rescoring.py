@@ -96,9 +96,11 @@ def rescore_run(db: Session, run: Run) -> dict[str, int]:
     rows = db.scalars(select(SampleResult).where(SampleResult.run_id == run.id)).all()
     up = down = 0
     if run.dataset.kind == "fc":
-        from .tool_check import apply_tool_check
+        from .tool_check import apply_tool_check, ensure_pass_rate
 
         down = apply_tool_check(rows, load_dataset_rows(run.dataset.path))
+        db.flush()
+        ensure_pass_rate(db, run.id)
     else:
         for s in rows:
             apply_lenient(s)
