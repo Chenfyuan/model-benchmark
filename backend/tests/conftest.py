@@ -22,6 +22,14 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "evalscope"
 
 @pytest.fixture(autouse=True)
 def fresh_db():
+    import shutil
+
+    from app.config import get_settings
+
+    # run / dataset ids restart at 1 with every fresh database: leftovers on disk from a previous test must not leak in
+    for d in (get_settings().runs_dir, get_settings().datasets_dir):
+        for child in d.iterdir():
+            shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink(missing_ok=True)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
