@@ -5,6 +5,7 @@ import {
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { crumbTail } from './breadcrumb'
 import { antdTheme, isDark, toggleTheme } from './theme'
 
 const route = useRoute()
@@ -12,6 +13,13 @@ const router = useRouter()
 const collapsed = ref(false)
 const selected = computed(() => [route.path.startsWith('/runs') && route.path !== '/runs/new' ? '/runs' : route.path])
 const go = ({ key }: { key: string | number }) => router.push(String(key))
+// top-level pages show their own name; the run detail page shows  评测任务 / <model> × <dataset>
+const crumbs = computed<{ label: string; to?: string }[]>(() => {
+  const title = String(route.meta.title ?? '')
+  return route.matched.some((r) => r.path === '/runs/:id')
+    ? [{ label: '评测任务', to: '/runs' }, { label: crumbTail.value ?? `任务 #${route.params.id}` }]
+    : [{ label: title }]
+})
 </script>
 
 <template>
@@ -35,7 +43,13 @@ const go = ({ key }: { key: string | number }) => router.push(String(key))
 
       <a-layout>
         <a-layout-header class="topbar">
-          <span class="faint">多模态模型评测平台</span>
+          <nav class="crumbs" aria-label="面包屑">
+            <template v-for="(c, i) in crumbs" :key="i">
+              <span v-if="i" class="sep">/</span>
+              <a v-if="c.to" class="crumb link" @click="router.push(c.to)">{{ c.label }}</a>
+              <span v-else class="crumb" :class="{ current: i === crumbs.length - 1 }" :title="c.label" :aria-current="i === crumbs.length - 1 ? 'page' : undefined">{{ c.label }}</span>
+            </template>
+          </nav>
           <a-tooltip :title="isDark ? '切换到浅色' : '切换到深色'">
             <a-button type="text" shape="circle" @click="toggleTheme">
               <template #icon><component :is="isDark ? BulbFilled : BulbOutlined" /></template>
@@ -63,6 +77,12 @@ const go = ({ key }: { key: string | number }) => router.push(String(key))
 .logo-text { display: flex; flex-direction: column; line-height: 1.25; color: var(--ink); }
 .logo-text b { font-size: 16px; }
 .logo-text span { font-size: 12px; color: var(--ink-muted); }
+.crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; color: var(--ink-muted); }
+.crumb { white-space: nowrap; }
+.crumb.current { color: var(--ink); overflow: hidden; text-overflow: ellipsis; max-width: 560px; }
+.crumb.link { cursor: pointer; color: var(--ink-muted); transition: color var(--hg-fast) var(--hg-ease); }
+.crumb.link:hover { color: var(--ink); }
+.sep { color: var(--line-strong); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 56px; line-height: 56px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.12s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

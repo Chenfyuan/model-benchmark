@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ArrowLeftOutlined, DownloadOutlined, FileTextOutlined, ReloadOutlined, RedoOutlined, StopOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, FileTextOutlined, ReloadOutlined, RedoOutlined, StopOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { crumbTail } from '../breadcrumb'
 import { api, mediaUrl, type Metric, type Run, type Sample } from '../api'
 import MetricCard from '../components/MetricCard.vue'
 import RunProgress from '../components/ds/RunProgress.vue'
@@ -42,7 +43,8 @@ onMounted(async () => {
   if (run.value?.status === 'completed') { await loadMetrics(); await loadSamples() }
   timer = setInterval(() => run.value && isActive(run.value) && loadRun(), 3000)
 })
-onBeforeUnmount(() => clearInterval(timer))
+watch(run, (r) => { if (r) crumbTail.value = `${r.model_name} × ${r.dataset_name}` })
+onBeforeUnmount(() => { clearInterval(timer); crumbTail.value = null })
 watch(filter, () => { samplePage.value = 1; loadSamples() }, { deep: true })
 watch(samplePage, loadSamples)
 
@@ -101,7 +103,6 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
 
 <template>
   <div v-if="run" class="page">
-    <a-button type="link" style="padding: 0; margin: 4px 0 8px" @click="router.push('/runs')"><template #icon><ArrowLeftOutlined /></template>评测任务</a-button>
     <div class="row-between" style="margin-bottom: 18px; align-items: flex-start">
       <div>
         <div class="row" style="gap: 12px"><h1 class="title">{{ run.model_name }} <span class="faint">×</span> {{ run.dataset_name }}</h1><StatusBadge :run="run" /></div>
