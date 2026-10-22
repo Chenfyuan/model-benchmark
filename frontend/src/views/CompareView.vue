@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { FileTextOutlined, SwapOutlined } from '@ant-design/icons-vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl, type CompareCell, type CompareResult, type CompareRow, type Composite, type Metric, type Run, type Scheme } from '../api'
 import CompareChart from '../components/CompareChart.vue'
@@ -40,8 +40,8 @@ async function load() {
   } catch (e: any) { error.value = e.response?.data?.message ?? '加载失败'; data.value = null }
 }
 async function loadComposite() {
-  composite.value = null
-  if (!schemeId.value || ids.value.length < 2) return
+  // keep the previous ranking on screen while the new one loads: the rows then glide to their new places instead of remounting
+  if (!schemeId.value || ids.value.length < 2) { composite.value = null; return }
   try { composite.value = await api.composite(ids.value, schemeId.value, true) } catch { composite.value = null }
 }
 onMounted(async () => {
@@ -53,6 +53,19 @@ onBeforeUnmount(() => clearInterval(timer))
 watch(ids, load)
 watch(schemeId, loadComposite)
 const ranked = computed(() => composite.value?.models.filter((m) => m.score !== null) ?? [])
+
+// FLIP: when the ranking changes the rows glide from their old place to the new one (spring curve)
+const lbEl = ref<HTMLElement>()
+watch(ranked, async () => {
+  const before = new Map([...(lbEl.value?.querySelectorAll<HTMLElement>('.crow') ?? [])].map((e) => [e.dataset.id!, e.getBoundingClientRect().top]))
+  await nextTick()
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  lbEl.value?.querySelectorAll<HTMLElement>('.crow').forEach((e) => {
+    const was = before.get(e.dataset.id!)
+    const dy = was === undefined ? 0 : was - e.getBoundingClientRect().top
+    if (dy) e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 700, easing: 'cubic-bezier(.34, 1.56, .64, 1)' })
+  })
+}, { flush: 'pre' })
 const incomplete = computed(() => composite.value?.models.filter((m) => m.score === null) ?? [])
 
 const picker = computed({
@@ -220,7 +233,8 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
         </p>
         <template v-else-if="composite">
           <a-alert v-if="composite.models.some((m) => m.trial)" type="warning" show-icon style="margin-top: 12px" message="包含限制了题数的试跑结果，样本少、分数波动大，综合得分只能做粗略参考。" />
-          <div v-for="(m, i) in ranked" :key="m.model_id" class="crow">
+          <div ref="lbEl" class="lb">
+          <div v-for="(m, i) in ranked" :key="m.model_id" :data-id="m.model_id" class="crow" :class="{ top: i === 0 }">
             <span class="rk">{{ i + 1 }}</span>
             <b class="mn">{{ m.model_name }}</b>
             <div class="track"><div class="fill" :style="{ width: m.score! + '%' }" /></div>
@@ -234,6 +248,7 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
               </template>
               <a class="why">怎么算的</a>
             </a-popover>
+          </div>
           </div>
           <div v-for="m in incomplete" :key="m.model_id" class="crow dim">
             <span class="rk">—</span><b class="mn">{{ m.model_name }}</b>
@@ -346,11 +361,15 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 .vtag.warn { background: var(--amber-soft); color: var(--amber); }
 .crow { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .crow.dim { opacity: .75; }
-.rk { width: 22px; height: 22px; border-radius: 50%; background: var(--signal); color: var(--on-signal); font-size: 12px; font-family: var(--font-display); display: grid; place-items: center; flex: none; }
+.rk { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); color: var(--ink-muted); font-size: 12px; font-family: var(--font-display); display: grid; place-items: center; flex: none; }
 .crow.dim .rk { background: var(--line); color: var(--ink-muted); }
 .mn { width: 170px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track { flex: 1; height: 12px; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; }
-.fill { height: 100%; border-radius: var(--radius-pill); background: var(--signal); }
+.fill { height: 100%; border-radius: var(--radius-pill); background: var(--ink-muted); opacity: .55; transition: width var(--hg-slow) var(--hg-ease); }
+/* signal only for first place */
+.crow.top .rk { background: var(--signal); color: var(--on-signal); }
+.crow.top .fill { background: var(--signal); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
 .sc { font-family: var(--font-display); width: 56px; text-align: right; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .why { font-size: 13px; cursor: pointer; flex: none; }
 @media (max-width: 900px) { .qbody { flex-direction: column; } }

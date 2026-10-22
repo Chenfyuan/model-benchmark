@@ -177,7 +177,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
 
         <h3 class="section-title" style="margin: 24px 0 10px">成本与性能</h3>
         <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
-          <MetricCard v-for="k in ['latency_mean', 'latency_p90', 'latency_max', 'input_tokens_mean', 'output_tokens_mean', 'output_tps']" :key="k" :label="perf[k]?.label ?? k" :value="num(perf[k])" />
+          <MetricCard v-for="k in ['latency_mean', 'latency_p90', 'latency_max', 'input_tokens_mean', 'output_tokens_mean', 'output_tps']" :key="k" :label="perf[k]?.label ?? k" :value="num(perf[k])" :num="perf[k]?.value ?? null" :format="(v) => num({ ...perf[k]!, value: v })" />
         </div>
         <div v-if="run.input_tokens != null" class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px">
           <MetricCard label="累计用量"  :value="fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0))" :num="(run.input_tokens ?? 0) + (run.output_tokens ?? 0)" :format="fmtTokens" :hint="`输入 ${fmtTokens(run.input_tokens)} · 输出 ${fmtTokens(run.output_tokens)}`" />

@@ -75,6 +75,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 .page > :nth-child(5) { --d: 4; }
 .page > :nth-child(n+6) { --d: 5; }
 
+/* segmented control: the thumb overshoots slightly (spring) */
+.ant-segmented .ant-segmented-thumb { transition-timing-function: var(--hg-spring); }
+
 /* buttons: press shrinks a little, the primary one glows on hover */
 .ant-btn:not(.ant-btn-link):not(.ant-btn-text):not(:disabled):active { transform: scale(.97); transition-duration: var(--hg-fast); }
 .ant-btn.ant-btn-primary:not(:disabled):hover { box-shadow: var(--shadow-glow); }
