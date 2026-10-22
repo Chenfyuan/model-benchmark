@@ -143,7 +143,7 @@ def run_report(db: Session, r: Run) -> str:
     return _page(f"{r.model.name} × {r.dataset.name} 评测报告", "".join(body))
 
 
-def compare_report(db: Session, runs: list[Run], warnings: list[str]) -> str:
+def compare_report(db: Session, runs: list[Run], warnings: list[str], scheme: Any = None) -> str:
     adj = {r.id: adjusted_scores(db, r.id) for r in runs}
     metrics = {r.id: db.scalars(select(RunMetric).where(RunMetric.run_id == r.id).order_by(RunMetric.id)).all() for r in runs}
 
@@ -172,6 +172,21 @@ def compare_report(db: Session, runs: list[Run], warnings: list[str]) -> str:
     rows.append(row("费用", lambda r: None if r.cost is None else (r.cost, f"${r.cost:.4f}"), "lower_is_better"))
     body = ["<h1>模型对比报告</h1>", f'<div class="muted">{len(runs)} 个任务 · 绿色表示这一行最优</div>']
     body += [f'<div class="warn">{escape(w)}</div>' for w in warnings]
+    if scheme is not None:
+        from .composite import compute
+
+        comp = compute(db, scheme, runs)
+        weights = " · ".join(f"{escape(i['dataset_name'])} {i['weight_pct']:.0f}%" for i in comp["scheme"]["items"])
+        lines = []
+        for k, m in enumerate([m for m in comp["models"] if m["score"] is not None], 1):
+            detail = "；".join(f"{escape(p['dataset_name'])} {p['value']:.1f} × {p['weight_pct']:.0f}%" for p in m["parts"])
+            lines.append(f"<tr><td>{k}</td><td><b>{escape(m['model_name'])}</b></td><td class=\"num\"><b>{m['score']:.1f}</b></td><td class=\"muted\">{detail}</td></tr>")
+        for m in [m for m in comp["models"] if m["score"] is None]:
+            why = ("缺少：" + "、".join(map(escape, m["missing"])) if m["missing"] else "") + "；".join(map(escape, m["problems"]))
+            lines.append(f"<tr><td>—</td><td>{escape(m['model_name'])}</td><td>—</td><td class=\"muted\">无法计算。{why}</td></tr>")
+        trial = '<div class="warn">包含限制了题数的试跑结果，综合得分只能做粗略参考。</div>' if any(m["trial"] for m in comp["models"]) else ""
+        body.append(f'<h2>综合得分 · {escape(scheme.name)}</h2><div class="muted">权重：{weights}。综合得分是加权平均，不同评测集难度不同，分数接近时请回头看具体的错题。</div>{trial}'
+                    f'<div class="card"><table><tr><th>#</th><th>模型</th><th>综合得分</th><th>明细（得分 × 权重）</th></tr>{"".join(lines)}</table></div>')
     body.append(f'<h2>逐项对比</h2><div class="card"><table><tr><th></th>{head}</tr>{"".join(rows)}</table></div>')
 
     if len({r.dataset_id for r in runs}) == 1:  # same data: list the questions where the models disagree

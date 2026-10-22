@@ -74,6 +74,12 @@ export interface CompareRow {
   results: Record<string, CompareCell | null>
 }
 
+export interface SchemeItem { dataset_name: string; weight: number; weight_pct?: number }
+export interface Scheme { id: number; name: string; items: Required<SchemeItem>[]; created_at: string }
+export interface CompositePart { dataset_name: string; weight_pct: number; value: number; run_id: number; metric: string; reviewed: boolean; limit: number | null }
+export interface CompositeModel { model_id: number; model_name: string; parts: CompositePart[]; missing: string[]; problems: string[]; score: number | null; trial: boolean }
+export interface Composite { scheme: { id: number; name: string; items: Required<SchemeItem>[] }; models: CompositeModel[] }
+
 export const http = axios.create({ baseURL: '/api/v1', timeout: 120000 })
 
 http.interceptors.response.use(
@@ -97,6 +103,12 @@ export const api = {
   updateModel: (id: number, b: object) => http.put<ModelEndpoint>(`/models/${id}`, b).then((r) => r.data),
   deleteModel: (id: number) => http.delete(`/models/${id}`),
   checkModel: (id: number) => http.post<CheckResult>(`/models/${id}/check`).then((r) => r.data),
+  schemes: () => http.get<Scheme[]>('/schemes').then((r) => r.data),
+  saveScheme: (b: { name: string; items: SchemeItem[] }, id?: number) =>
+    (id ? http.put<Scheme>(`/schemes/${id}`, b) : http.post<Scheme>('/schemes', b)).then((r) => r.data),
+  deleteScheme: (id: number) => http.delete(`/schemes/${id}`),
+  composite: (ids: number[], schemeId: number, silent = false) =>
+    http.get<Composite>('/compare/composite', { params: { run_ids: ids.join(','), scheme_id: schemeId }, silent }).then((r) => r.data),
   datasets: (params?: object) => http.get<Dataset[]>('/datasets', { params }).then((r) => r.data),
   capabilities: () => http.get<Record<string, string>>('/datasets/capabilities').then((r) => r.data),
   uploadDataset: (form: FormData) => http.post<Dataset>('/datasets', form).then((r) => r.data),

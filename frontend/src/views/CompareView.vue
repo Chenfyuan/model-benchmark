@@ -2,7 +2,7 @@
 import { FileTextOutlined, SwapOutlined } from '@ant-design/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, mediaUrl, type CompareCell, type CompareResult, type CompareRow, type Metric, type Run } from '../api'
+import { api, mediaUrl, type CompareCell, type CompareResult, type CompareRow, type Composite, type Metric, type Run, type Scheme } from '../api'
 import CompareChart from '../components/CompareChart.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { STATUS_BADGE, STATUS_LABEL, fmtCost, fmtMetric, fmtTokens, isActive } from '../format'
@@ -12,6 +12,12 @@ const router = useRouter()
 const ids = computed(() => String(route.query.runs ?? '').split(',').map(Number).filter((n) => n > 0))
 const data = ref<CompareResult | null>(null)
 const options = ref<Run[]>([])
+const schemes = ref<Scheme[]>([])
+const composite = ref<Composite | null>(null)
+const schemeId = computed({
+  get: () => (route.query.scheme ? Number(route.query.scheme) : undefined),
+  set: (v: number | undefined) => router.replace({ path: '/compare', query: { ...route.query, scheme: v ? String(v) : undefined } }),
+})
 const error = ref('')
 const focus = ref<number | null>(null) // dataset id whose details are shown
 const view = ref<'diff' | 'all_wrong' | 'all'>('diff')
@@ -29,19 +35,29 @@ async function load() {
   try {
     data.value = await api.compare(ids.value, true)
     error.value = ''
+    await loadComposite()
     if (!data.value.runs.some((r) => r.dataset_id === focus.value)) focus.value = data.value.runs[0].dataset_id
   } catch (e: any) { error.value = e.response?.data?.message ?? '加载失败'; data.value = null }
 }
+async function loadComposite() {
+  composite.value = null
+  if (!schemeId.value || ids.value.length < 2) return
+  try { composite.value = await api.composite(ids.value, schemeId.value, true) } catch { composite.value = null }
+}
 onMounted(async () => {
+  schemes.value = await api.schemes()
   await Promise.all([loadOptions(), load()])
   timer = setInterval(() => data.value?.runs.some(isActive) && load(), 3000)
 })
 onBeforeUnmount(() => clearInterval(timer))
 watch(ids, load)
+watch(schemeId, loadComposite)
+const ranked = computed(() => composite.value?.models.filter((m) => m.score !== null) ?? [])
+const incomplete = computed(() => composite.value?.models.filter((m) => m.score === null) ?? [])
 
 const picker = computed({
   get: () => ids.value,
-  set: (v: number[]) => router.replace({ path: '/compare', query: v.length ? { runs: v.join(',') } : {} }),
+  set: (v: number[]) => router.replace({ path: '/compare', query: v.length ? { runs: v.join(','), scheme: route.query.scheme } : {} }),
 })
 const pickerOptions = computed(() => {
   const seen = new Map<number, Run>()
@@ -163,7 +179,7 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 <template>
   <div class="page">
     <PageHeader title="模型对比" sub="把同一批题上的多个模型放在一起看：得分、速度、费用，以及它们到底在哪些题上不一样。">
-      <a-button v-if="ids.length >= 2 && data && data.runs.every((r) => r.status === 'completed')" tag="a" :href="`/api/v1/compare/report?run_ids=${ids.join(',')}&download=true`"><template #icon><FileTextOutlined /></template>导出报告</a-button>
+      <a-button v-if="ids.length >= 2 && data && data.runs.every((r) => r.status === 'completed')" tag="a" :href="`/api/v1/compare/report?run_ids=${ids.join(',')}&download=true${schemeId ? '&scheme_id=' + schemeId : ''}`"><template #icon><FileTextOutlined /></template>导出报告</a-button>
     </PageHeader>
 
     <div class="card card-pad" style="margin-bottom: 16px">
@@ -188,6 +204,45 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
           <div class="faint" style="font-size: 12.5px">{{ r.dataset_name }} v{{ r.dataset_version }} · #{{ r.id }}</div>
           <div class="big">{{ headline(r) }}</div>
         </div>
+      </div>
+
+      <!-- composite score -->
+      <div class="card card-pad" style="margin-bottom: 16px">
+        <div class="row-between" style="flex-wrap: wrap; gap: 10px">
+          <h3 class="section-title" style="margin: 0">综合得分</h3>
+          <div class="row">
+            <a-select v-model:value="schemeId" allow-clear :options="schemes.map((s) => ({ value: s.id, label: s.name }))" placeholder="选择评分方案" style="width: 220px" />
+            <a-button @click="router.push('/schemes')">管理方案</a-button>
+          </div>
+        </div>
+        <p v-if="!schemeId" class="faint" style="margin: 10px 0 0; font-size: 13.5px">
+          {{ schemes.length ? '选一个评分方案，把多个评测集的得分按权重合成一个综合得分。' : '还没有评分方案。到“评分方案”里按你们看重的程度设置各评测集的权重。' }}
+        </p>
+        <template v-else-if="composite">
+          <a-alert v-if="composite.models.some((m) => m.trial)" type="warning" show-icon style="margin-top: 12px" message="包含限制了题数的试跑结果，样本少、分数波动大，综合得分只能做粗略参考。" />
+          <div v-for="(m, i) in ranked" :key="m.model_id" class="crow">
+            <span class="rk">{{ i + 1 }}</span>
+            <b class="mn">{{ m.model_name }}</b>
+            <div class="track"><div class="fill" :style="{ width: m.score! + '%' }" /></div>
+            <span class="sc">{{ m.score!.toFixed(1) }}</span>
+            <a-popover trigger="click" placement="left">
+              <template #content>
+                <div v-for="p in m.parts" :key="p.dataset_name" style="font-size: 13px; line-height: 1.8">
+                  {{ p.dataset_name }}：<b>{{ p.value.toFixed(1) }}</b> × {{ p.weight_pct.toFixed(1) }}% = {{ (p.value * p.weight_pct / 100).toFixed(1) }}
+                  <span class="faint">（任务 #{{ p.run_id }}{{ p.reviewed ? '，复核后' : '' }}）</span>
+                </div>
+              </template>
+              <a class="why">怎么算的</a>
+            </a-popover>
+          </div>
+          <div v-for="m in incomplete" :key="m.model_id" class="crow dim">
+            <span class="rk">—</span><b class="mn">{{ m.model_name }}</b>
+            <span class="faint" style="flex: 1">
+              无法计算：<template v-if="m.missing.length">还没有这些评测集的结果：{{ m.missing.join('、') }}</template><template v-if="m.problems.length">{{ m.problems.join('；') }}</template>
+            </span>
+          </div>
+          <p class="faint" style="margin: 12px 0 0; font-size: 12.5px">方案“{{ composite.scheme.name }}”：{{ composite.scheme.items.map((i) => `${i.dataset_name} ${i.weight_pct.toFixed(0)}%`).join(' · ') }}。综合得分是加权平均，不同评测集的难度不同，分数接近时请回头看具体的错题。</p>
+        </template>
       </div>
 
       <!-- several datasets: matrix -->
@@ -289,5 +344,14 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 .vtag.good { background: var(--c-good); color: #fff; }
 .vtag.bad { background: var(--c-bad); color: #fff; }
 .vtag.warn { background: var(--c-warn); color: #fff; }
+.crow { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.crow.dim { opacity: .75; }
+.rk { width: 22px; height: 22px; border-radius: 50%; background: var(--c-primary); color: #fff; font-size: 12px; display: grid; place-items: center; flex: none; }
+.crow.dim .rk { background: var(--c-border); color: var(--c-text-2); }
+.mn { width: 170px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { flex: 1; height: 12px; border-radius: 99px; background: var(--c-border); overflow: hidden; }
+.fill { height: 100%; border-radius: 99px; background: var(--c-primary); }
+.sc { width: 56px; text-align: right; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.why { font-size: 13px; cursor: pointer; flex: none; }
 @media (max-width: 900px) { .qbody { flex-direction: column; } }
 </style>

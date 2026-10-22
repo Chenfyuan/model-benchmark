@@ -12,6 +12,7 @@ from ..db import get_db
 from ..errors import ApiError
 from ..models import Run, RunMetric, SampleResult
 from ..schemas import MetricOut, Page, RunOut
+from ..services.composite import compute as compute_composite
 from ..services.report import compare_report
 from sqlalchemy import func
 
@@ -87,14 +88,32 @@ def compare(run_ids: str = Query(...), db: Session = Depends(get_db)):
     }
 
 
+@router.get("/composite")
+def composite(run_ids: str = Query(...), scheme_id: int = Query(...), db: Session = Depends(get_db)):
+    """Weighted composite score per model over the compared runs, for a saved scheme."""
+    from ..models import ScoreScheme
+
+    scheme = db.get(ScoreScheme, scheme_id)
+    if not scheme:
+        raise ApiError("scheme_not_found", "评分方案不存在", 404)
+    return compute_composite(db, scheme, _load(db, _ids(run_ids)))
+
+
 @router.get("/report", response_class=HTMLResponse)
-def compare_report_html(run_ids: str = Query(...), download: bool = False, db: Session = Depends(get_db)):
+def compare_report_html(run_ids: str = Query(...), download: bool = False, scheme_id: int | None = None, db: Session = Depends(get_db)):
     runs = _load(db, _ids(run_ids))
     unfinished = [r.id for r in runs if r.status != "completed"]
     if unfinished:
         raise ApiError("not_completed", f"任务 {unfinished[0]} 还没有完成，完成后才能导出对比报告", 409)
     headers = {"Content-Disposition": 'attachment; filename="compare_report.html"'} if download else {}
-    return HTMLResponse(compare_report(db, runs, comparability_warnings(runs)), headers=headers)
+    scheme = None
+    if scheme_id is not None:
+        from ..models import ScoreScheme
+
+        scheme = db.get(ScoreScheme, scheme_id)
+        if not scheme:
+            raise ApiError("scheme_not_found", "评分方案不存在", 404)
+    return HTMLResponse(compare_report(db, runs, comparability_warnings(runs), scheme), headers=headers)
 
 
 @router.get("/samples", response_model=Page)

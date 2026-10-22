@@ -41,4 +41,15 @@ with TestClient(app) as c:
         c.post(f"/api/v1/runs/{rid}/rescore")
     queued = c.post("/api/v1/models", json=dict(name="model-c", protocol="openai", base_url="http://127.0.0.1:9", model_name="c", api_key="sk-stub-0000")).json()
     c.post("/api/v1/runs", json={"model_ids": [queued["id"]], "dataset_ids": [ds["id"]]})
+    # a second dataset, so a composite score over two datasets can be tested: model-a 90 %, model-b 60 %
+    body2 = "\n".join(json.dumps({"messages": [{"role": "user", "content": "q"}], "answer": "a"}) for _ in range(10))
+    ds2 = c.post("/api/v1/datasets", data={"name": "文档题-演示", "kind": "vqa", "capability": "doc_chart"}, files={"file": ("d.jsonl", body2.encode())}).json()
+    models = {m["name"]: m["id"] for m in c.get("/api/v1/models").json()}
+    for name, acc in (("model-a", 0.9), ("model-b", 0.6)):
+        rid = c.post("/api/v1/runs", json={"model_ids": [models[name]], "dataset_ids": [ds2["id"]]}).json()[0]["id"]
+        with SessionLocal() as db:
+            db.execute(update(Run).where(Run.id == rid).values(status="completed", stage="done", engine_version="1.14.0"))
+            db.add(RunMetric(run_id=rid, kind="quality", key="relaxed_acc", label="Accuracy", subset="OVERALL", value=acc, num=10,
+                             display_multiplier=100.0, display_unit="%", precision=1, direction="higher_is_better", primary=True))
+            db.commit()
 print("seeded")

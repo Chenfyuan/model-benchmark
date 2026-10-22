@@ -171,6 +171,17 @@ class Worker(Base):
     run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the run it is working on, if any
 
 
+class ScoreScheme(Base):
+    """A saved way of combining scores over several datasets into one number (weights chosen by the team)."""
+
+    __tablename__ = "score_scheme"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)  # [{"dataset_name": str, "weight": float > 0}]
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Setting(Base):
     """Small key/value store for platform-wide settings (currently only the budget limits)."""
 

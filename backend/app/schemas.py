@@ -166,6 +166,16 @@ class Page(BaseModel):
     page_size: int
 
 
+class SchemeItem(BaseModel):
+    dataset_name: str = Field(min_length=1, max_length=100)
+    weight: float = Field(gt=0, le=1000)
+
+
+class SchemeIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    items: list[SchemeItem] = Field(min_length=1, max_length=30)
+
+
 class ReviewIn(BaseModel):
     correct: bool | None = None  # null clears the review
     note: str | None = Field(default=None, max_length=1000)

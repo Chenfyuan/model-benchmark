@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ApiOutlined, BarChartOutlined, BulbFilled, BulbOutlined, DatabaseOutlined, ExperimentOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UnorderedListOutlined,
+  ApiOutlined, BarChartOutlined, BulbFilled, ControlOutlined, BulbOutlined, DatabaseOutlined, ExperimentOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { computed, ref } from 'vue'
@@ -26,6 +26,7 @@ const go = ({ key }: { key: string | number }) => router.push(String(key))
           <a-menu-item key="/runs/new"><template #icon><ThunderboltOutlined /></template>发起评测</a-menu-item>
           <a-menu-item key="/runs"><template #icon><UnorderedListOutlined /></template>评测任务</a-menu-item>
           <a-menu-item key="/compare"><template #icon><BarChartOutlined /></template>模型对比</a-menu-item>
+          <a-menu-item key="/schemes"><template #icon><ControlOutlined /></template>评分方案</a-menu-item>
           <a-menu-item key="/models"><template #icon><ApiOutlined /></template>模型管理</a-menu-item>
           <a-menu-item key="/datasets"><template #icon><DatabaseOutlined /></template>评测集</a-menu-item>
           <a-menu-item key="/settings"><template #icon><SafetyCertificateOutlined /></template>费用限额</a-menu-item>

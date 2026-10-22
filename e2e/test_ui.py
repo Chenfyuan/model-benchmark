@@ -10,7 +10,7 @@ def api(page, path):
 def test_run_list_shows_engine_and_reviewed_scores_and_the_missing_worker_hint(page):
     page.goto(f"{page.base}/runs")
     page.wait_for_selector(".ant-table-row")
-    row = page.locator(".ant-table-row:has-text('model-a')").inner_text()
+    row = page.locator(".ant-table-row:has-text('model-a'):has-text('图表问答-演示')").inner_text()
     assert "14.3%" in row and "复核后 71.4%" in row  # engine score kept, reviewed score next to it
     assert "没有 Worker 在线" in page.locator(".page").inner_text()  # a run is queued and nobody would pick it up
 
@@ -101,3 +101,39 @@ def test_dark_theme_toggle_is_remembered(page):
     page.reload()
     page.wait_for_selector(".ant-table-row")
     assert page.evaluate("document.documentElement.dataset.theme") == "dark"
+
+
+def test_scoring_scheme_with_configurable_weights_ranks_models_on_the_compare_page(page):
+    page.goto(f"{page.base}/schemes")
+    page.wait_for_selector("text=还没有评分方案")
+    page.get_by_role("button", name=re.compile("新建")).first.click()
+    page.wait_for_selector("text=评测集和权重")
+    page.get_by_placeholder("例如：文档场景").fill("文档场景")
+    rows = page.locator(".wrow")
+    for i, name in enumerate(["图表问答-演示", "文档题-演示"]):
+        rows.nth(i).locator(".ant-select").click()
+        rows.nth(i).locator("input.ant-select-selection-search-input").fill(name)  # the list is long: search, as a person would
+        page.locator(".ant-select-item-option", has_text=name).click()
+    rows.nth(0).locator("input.ant-input-number-input").fill("3")  # 3 : 1 -> 75 % : 25 %
+    page.wait_for_timeout(300)
+    assert "75.0%" in rows.nth(0).inner_text() and "25.0%" in rows.nth(1).inner_text()  # live share next to the weight
+    page.get_by_role("button", name=re.compile(r"保\s*存")).click()
+    page.wait_for_selector(".scheme")
+    assert "75.0%" in page.locator(".scheme").inner_text()
+
+    page.goto(f"{page.base}/compare?runs=1,2,4,5")
+    page.wait_for_selector("text=综合得分")
+    page.locator(".ant-select", has_text="选择评分方案").click()
+    page.locator(".ant-select-item-option", has_text="文档场景").click()
+    page.wait_for_selector(".crow")
+    got = page.locator(".crow").all_inner_texts()
+    # model-a: 0.75 * 71.4 + 0.25 * 90 = 76.1 ; model-b: 0.75 * 14.3 + 0.25 * 60 = 25.7
+    assert "model-a" in got[0] and "76.1" in got[0] and "model-b" in got[1] and "25.7" in got[1]
+    page.get_by_text("怎么算的").first.click()
+    page.wait_for_selector("text=任务 #1")
+    assert "复核后" in page.locator(".ant-popover").inner_text()  # the reviewed score of run 1 is what counts
+    assert "scheme_id=" in page.get_by_role("link", name=re.compile("导出报告")).get_attribute("href")
+
+    page.goto(f"{page.base}/compare?runs=1,2&scheme={api(page, '/schemes')[0]['id']}")  # one dataset only: no composite
+    page.wait_for_selector(".crow.dim")
+    assert "文档题-演示" in page.locator(".crow.dim").first.inner_text()
