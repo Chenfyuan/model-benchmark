@@ -237,9 +237,13 @@ docs/images/           README 里的截图
 ## 开发与测试
 
 ```bash
-cd backend && pytest             # 65 个测试，不需要网络和真实模型
+cd backend && pytest             # 后端测试，不需要网络和真实模型
 cd frontend && npm run build     # 含 vue-tsc 类型检查
+pip install -r e2e/requirements.txt && playwright install chromium
+python -m pytest e2e             # 浏览器测试：真实的页面 + 接口，用灌好的数据，不调用模型（需要先 npm run build）
 ```
+
+浏览器测试在 `e2e/`，用 Playwright 打开构建好的应用，覆盖任务列表、复核后得分、人工复核、对比页和报告、模型表单、费用上限确认、深色主题；任何页面出现未捕获的异常或控制台报错都会让测试失败。沙箱里没有自带浏览器时用 `CHROMIUM_PATH` 指定 Chromium 的位置。CI（`.github/workflows/ci.yml`）里三项都会跑。
 
 - 后端测试里的引擎是 `tests/fake_engine.py`：真实的配置生成、进度解析和结果解析代码，只是子进程改成把 `tests/fixtures/` 里记录的真实 EvalScope 1.14.0 输出拷贝到位，所以不需要调用任何模型。
 - 想接入别的评测引擎：实现 `EngineAdapter` 的三个方法（`prepare`、`progress`、`collect`），在 `engines/__init__.py` 里注册即可。
