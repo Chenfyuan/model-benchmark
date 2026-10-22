@@ -22,7 +22,7 @@ const status = (used: number, limit: number | null) => (limit && used > limit ? 
 </script>
 
 <template>
-  <div class="page narrow" style="--col: 816px">
+  <div class="page">
     <PageHeader title="费用限额" sub="默认不限制。设了上限之后，超出的评测会被拦截或自动停止。" />
 
     <div v-if="view" class="card card-pad" style="margin-bottom: 16px">

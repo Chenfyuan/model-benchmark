@@ -53,7 +53,7 @@ async function remove(s: Scheme) { await api.deleteScheme(s.id); message.success
 </script>
 
 <template>
-  <div class="page narrow" style="--col: 856px">
+  <div class="page">
     <PageHeader title="评分方案" sub="把一个模型在多个评测集上的得分，按你们看重的程度合成一个综合得分。在“模型对比”里选方案就能看到。">
       <a-button type="primary" size="large" @click="open()"><template #icon><PlusOutlined /></template>新建方案</a-button>
     </PageHeader>
