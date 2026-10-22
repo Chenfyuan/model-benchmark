@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl, type CompareCell, type CompareResult, type CompareRow, type Composite, type Metric, type Run, type Scheme } from '../api'
 import EmptyState from '../components/ds/EmptyState.vue'
+import Skeleton from '../components/ds/Skeleton.vue'
 import CompareChart from '../components/CompareChart.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { STATUS_BADGE, STATUS_LABEL, fmtCost, fmtMetric, fmtTokens, isActive } from '../format'
@@ -205,6 +206,11 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
       <a-button type="primary" @click="router.push('/runs/new')">发起一次多模型评测</a-button>
     </EmptyState>
     <a-alert v-if="error" type="error" show-icon :message="error" style="margin-bottom: 16px" />
+
+    <div v-if="!data && !error && ids.length >= 2">
+      <Skeleton :h="84" style="border-radius: var(--radius-lg)" />
+      <Skeleton :h="220" style="margin-top: 16px; border-radius: var(--radius-lg)" />
+    </div>
 
     <template v-if="data">
       <a-alert v-if="data.warnings.length" type="warning" show-icon message="这些差异会影响对比的可信度" style="margin-bottom: 16px">

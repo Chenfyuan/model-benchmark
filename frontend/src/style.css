@@ -89,3 +89,12 @@ body { background-color: var(--bg); background-image: radial-gradient(var(--line
   .page > * { animation: none; }
   .ant-btn:not(:disabled):active { transform: none; }
 }
+
+/* tables: quiet small headers, so the numbers in the rows lead */
+.ant-table-wrapper .ant-table .ant-table-thead > tr > th { font-size: 12px; font-weight: 500; color: var(--ink-muted); letter-spacing: .02em; }
+
+/* status tags in Heng tints (Ant derives muddy greys from the status colours) */
+.ant-tag.ant-tag-processing { background: var(--signal-soft); color: var(--signal); border-color: color-mix(in srgb, var(--signal) 40%, transparent); }
+.ant-tag.ant-tag-success { background: var(--teal-soft); color: var(--teal); border-color: color-mix(in srgb, var(--teal) 40%, transparent); }
+.ant-tag.ant-tag-warning { background: var(--amber-soft); color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.ant-tag.ant-tag-error { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }

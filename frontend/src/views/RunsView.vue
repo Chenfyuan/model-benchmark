@@ -60,11 +60,11 @@ const filters = computed(() => [
 ])
 const columns = [
   { title: '任务', key: 'task' },
-  { title: '状态', key: 'status', width: 220 },
+  { title: '状态', key: 'status', width: 180 },
   { title: '主指标', key: 'headline', width: 160 },
   { title: '用量', key: 'usage', width: 130 },
-  { title: '时间', key: 'time', width: 150 },
-  { title: '', key: 'actions', width: 150, align: 'right' as const },
+  { title: '时间', key: 'time', width: 120 },
+  { title: '', key: 'actions', width: 100, align: 'right' as const },
 ]
 const customRow = (r: Run) => ({
   onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ant-table-selection-column')) router.push(`/runs/${r.id}`) },
@@ -85,7 +85,7 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
     <div v-else-if="workers && workers.alive > 0" class="faint" style="margin: -6px 0 12px; font-size: 13px">
       Worker：{{ workers.alive }} 个在线，{{ workers.idle }} 个空闲；{{ workers.running }} 个任务运行中<span v-if="workers.queued">，{{ workers.queued }} 个排队（同一个模型的任务默认依次运行）</span>
     </div>
-    <div class="grid grid-4" style="margin-bottom: 16px">
+    <div class="grid stats" style="margin-bottom: 16px">
       <div class="card card-pad stat"><div class="muted">全部任务</div><div class="n">{{ counts.all }}</div></div>
       <div class="card card-pad stat"><div class="muted">运行中</div><div class="n" style="color: var(--signal)">{{ counts.running }}</div></div>
       <div class="card card-pad stat"><div class="muted">已完成</div><div class="n" style="color: var(--teal)">{{ counts.completed }}</div></div>
@@ -156,5 +156,7 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
 <style scoped>
 .stat { padding: 16px 20px; }
 .n { font-family: var(--font-display); font-size: 30px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
-.hl { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.stats { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1000px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.hl { font-family: var(--font-display); font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
 </style>

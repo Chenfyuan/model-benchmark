@@ -3,7 +3,7 @@ import {
   ApiOutlined, BarChartOutlined, BulbFilled, ControlOutlined, BulbOutlined, DatabaseOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
-import { computed, ref } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from './components/ds/BrandMark.vue'
 import { crumbTail } from './breadcrumb'
@@ -21,6 +21,7 @@ const crumbs = computed<{ label: string; to?: string }[]>(() => {
     ? [{ label: '评测任务', to: '/runs' }, { label: crumbTail.value ?? `任务 #${route.params.id}` }]
     : [{ label: title }]
 })
+watchEffect(() => { document.title = `${crumbs.value[crumbs.value.length - 1].label} · 评测平台` })
 </script>
 
 <template>

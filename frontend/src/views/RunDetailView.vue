@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { crumbTail } from '../breadcrumb'
 import { api, mediaUrl, type Metric, type Run, type Sample } from '../api'
 import EmptyState from '../components/ds/EmptyState.vue'
+import Skeleton from '../components/ds/Skeleton.vue'
 import MetricCard from '../components/MetricCard.vue'
 import RunProgress from '../components/ds/RunProgress.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -261,6 +262,12 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         </div>
       </a-tab-pane>
     </a-tabs>
+  </div>
+  <div v-else class="page">
+    <Skeleton :h="28" :w="320" style="margin: 12px 0 8px" />
+    <Skeleton :h="14" :w="260" style="margin-bottom: 20px" />
+    <Skeleton :h="160" style="border-radius: var(--radius-lg)" />
+    <Skeleton :h="100" style="margin-top: 16px; border-radius: var(--radius-lg)" />
   </div>
 </template>
 
