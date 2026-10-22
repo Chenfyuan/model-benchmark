@@ -81,6 +81,10 @@ const lines = computed<Line[]>(() => {
   const out: Line[] = []
   const qualityKeys = [...new Map(runs.flatMap((r) => mx(r).filter((m) => m.kind === 'quality' && m.subset === 'OVERALL').map((m) => [m.key, m]))).values()]
   for (const q of qualityKeys) out.push({ ...line(q.key, q.label + (q.primary ? ' · 主指标' : ''), runs, (r) => { const m = find(r, q.key); return m ? { v: m.value, text: fmtMetric(m) } : null }, q.direction), section: '得分' })
+  if (runs.some((r) => r.adjusted)) {
+    const prim = qualityKeys.find((q) => q.primary)
+    out.push(line('adjusted', '复核后得分（宽松匹配 + 人工）', runs, (r) => (r.adjusted ? { v: r.adjusted.adjusted, text: r.adjusted.display } : r.headline ? { v: r.headline.value, text: r.headline.display + '（未改判）' } : null), prim?.direction ?? 'higher_is_better'))
+  }
   const perf: [string, string][] = [['latency_mean', '平均延迟'], ['latency_p90', '延迟 P90'], ['input_tokens_mean', '平均输入 token'], ['output_tokens_mean', '平均输出 token'], ['output_tps', '输出吞吐']]
   perf.forEach(([k, l], i) => {
     const dir = k === 'output_tps' ? 'higher_is_better' : k.startsWith('latency') ? 'lower_is_better' : 'none'
@@ -247,6 +251,8 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
                   <template v-if="cell">
                     <div v-if="cell.tool_calls" class="mono pre" style="margin-top: 4px">{{ cell.tool_calls.map((t) => `${t.name}(${pretty(t.arguments)})`).join('\n') }}</div>
                     <div v-else class="pre atext">{{ cell.extracted && cell.extracted !== cell.prediction ? cell.extracted : cell.prediction || '（空）' }}</div>
+                    <div v-if="cell.reviewed" class="faint" style="font-size: 12px; margin-top: 2px">人工复核{{ cell.engine_correct !== cell.is_correct ? '（改判）' : '' }}</div>
+                    <a-tooltip v-else-if="cell.auto_reason && cell.is_correct && cell.engine_correct === false" :title="cell.auto_reason"><div class="faint" style="font-size: 12px; margin-top: 2px; cursor: help">宽松匹配通过（引擎判错）</div></a-tooltip>
                     <a-tooltip v-if="cell.extracted && cell.extracted !== cell.prediction && !cell.tool_calls" :title="cell.prediction"><div class="faint" style="font-size: 12px; margin-top: 2px; cursor: help">抽取自完整回答（悬停查看）</div></a-tooltip>
                   </template>
                 </div>

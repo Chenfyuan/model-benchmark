@@ -21,6 +21,7 @@ from .db import SessionLocal, init_db
 from .engines import get_adapter
 from .engines.base import Endpoint, EngineAdapter, ParsedResult, RunContext, Usage
 from .models import ModelEndpoint, Run, RunMetric, SampleResult, utcnow
+from .services.rescoring import apply_lenient
 from .services.budget import check as check_budget
 from .services.budget import get_budget, month_usage, run_cost
 
@@ -80,9 +81,22 @@ def error_summary(log_text: str, secrets: list[str]) -> str:
 def save_results(run_id: int, parsed: ParsedResult) -> None:
     with SessionLocal() as db:
         db.execute(delete(RunMetric).where(RunMetric.run_id == run_id))
+        judged = bool(db.scalar(select(Run.judge_model_id).where(Run.id == run_id)))
+        # a retry re-collects every sample: keep a person's decisions for answers that did not change
+        kept = {(r.subset, r.idx): r for r in db.scalars(select(SampleResult).where(SampleResult.run_id == run_id, SampleResult.review_correct.is_not(None)))}
+        kept = {k: (r.prediction, r.review_correct, r.review_note, r.reviewed_at) for k, r in kept.items()}
         db.execute(delete(SampleResult).where(SampleResult.run_id == run_id))
         db.add_all(RunMetric(run_id=run_id, **m) for m in parsed.metrics)
-        db.add_all(SampleResult(run_id=run_id, **s) for s in parsed.samples)
+        for s in parsed.samples:
+            old = kept.get((s["subset"], s["idx"]))
+            if old and old[0] == s["prediction"]:
+                s["review_correct"], s["review_note"], s["reviewed_at"] = old[1:]
+            if judged:  # the judge model already decides meaning; lenient string matching adds nothing
+                review = s.get("review_correct")
+                s.update(auto_correct=None, auto_reason=None, final_correct=s["is_correct"] if review is None else review)
+            else:
+                apply_lenient(s)
+            db.add(SampleResult(run_id=run_id, **s))
         db.execute(update(Run).where(Run.id == run_id).values(engine_version=parsed.engine_version))
         db.commit()
 

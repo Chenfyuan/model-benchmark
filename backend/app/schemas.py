@@ -104,6 +104,7 @@ class RunOut(ORM):
     cost: float | None = None
     stop_reason: str | None = None  # budget_run | budget_month when a spending limit stopped the run
     headline: dict[str, Any] | None = None  # primary metric, for the run list
+    adjusted: dict[str, Any] | None = None  # headline recomputed after lenient matching / manual review (None = unchanged)
 
 
 class MetricOut(ORM):
@@ -132,7 +133,13 @@ class SampleOut(ORM):
     tool_calls: list[dict[str, Any]] | None
     scores: dict[str, Any]
     score: float | None
-    is_correct: bool | None
+    is_correct: bool | None  # the engine's verdict
+    auto_correct: bool | None = None
+    auto_reason: str | None = None
+    review_correct: bool | None = None
+    review_note: str | None = None
+    reviewed_at: datetime | None = None
+    final_correct: bool | None = None
     judge_output: str | None
     latency: float | None
     input_tokens: int | None
@@ -151,3 +158,8 @@ class Page(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ReviewIn(BaseModel):
+    correct: bool | None = None  # null clears the review
+    note: str | None = Field(default=None, max_length=1000)

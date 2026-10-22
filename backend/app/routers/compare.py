@@ -11,7 +11,9 @@ from ..db import get_db
 from ..errors import ApiError
 from ..models import Run, RunMetric, SampleResult
 from ..schemas import MetricOut, Page, RunOut
-from .runs import _headlines, run_out
+from sqlalchemy import func
+
+from .runs import _adjusted, _headlines, run_out
 
 router = APIRouter(prefix="/compare", tags=["compare"])
 MAX_RUNS = 8
@@ -74,8 +76,10 @@ def compare(run_ids: str = Query(...), db: Session = Depends(get_db)):
         r.id: [MetricOut.model_validate(m) for m in db.scalars(select(RunMetric).where(RunMetric.run_id == r.id).order_by(RunMetric.id))]
         for r in runs
     }
+    adj = _adjusted(db, [r.id for r in runs])
     return {
-        "runs": [run_out(r, hl.get(r.id)) for r in runs],
+        "runs": [run_out(r, hl.get(r.id), adj.get(r.id)) for r in runs],
+        "adjusted": {str(i): a for i, a in adj.items()},
         "metrics": metrics,
         "warnings": comparability_warnings(runs),
     }
@@ -95,7 +99,7 @@ def compare_samples(
     if len({r.dataset_id for r in runs}) > 1:
         raise ApiError("different_datasets", "逐题对比只能用于同一个评测集版本的任务")
 
-    q = select(SampleResult.run_id, SampleResult.subset, SampleResult.idx, SampleResult.is_correct).where(SampleResult.run_id.in_(ids))
+    q = select(SampleResult.run_id, SampleResult.subset, SampleResult.idx, func.coalesce(SampleResult.final_correct, SampleResult.is_correct)).where(SampleResult.run_id.in_(ids))
     if subset:
         q = q.where(SampleResult.subset == subset)
     grid: dict[tuple[str, int], dict[int, bool | None]] = {}
@@ -133,7 +137,8 @@ def compare_samples(
                 "media": first.media, "media_run_id": first.run_id, "media_sample_id": first.id,
                 "results": {
                     str(i): None if i not in cells else {
-                        "sample_id": cells[i].id, "is_correct": cells[i].is_correct, "score": cells[i].score,
+                        "sample_id": cells[i].id, "is_correct": cells[i].final_correct if cells[i].final_correct is not None else cells[i].is_correct,
+                        "engine_correct": cells[i].is_correct, "auto_reason": cells[i].auto_reason, "reviewed": cells[i].review_correct is not None, "score": cells[i].score,
                         "prediction": cells[i].prediction, "extracted": cells[i].extracted, "tool_calls": cells[i].tool_calls,
                         "latency": cells[i].latency, "error": cells[i].error,
                     }

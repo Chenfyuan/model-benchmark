@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeftOutlined, DownloadOutlined, FileTextOutlined, ReloadOutlined, RedoOutlined, StopOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+import { Modal, message } from 'ant-design-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl, type Metric, type Run, type Sample } from '../api'
@@ -18,6 +18,7 @@ const tab = ref('overview')
 const samples = ref<Sample[]>([])
 const sampleTotal = ref(0)
 const samplePage = ref(1)
+const noteDraft = ref<Record<number, string>>({})
 const filter = ref({ correct: '', subset: undefined as string | undefined, q: '' })
 const logText = ref<string | null>(null)
 const logLoading = ref(false)
@@ -32,6 +33,7 @@ async function loadMetrics() { metrics.value = await api.metrics(id) }
 async function loadSamples() {
   const r = await api.samples(id, { page: samplePage.value, page_size: 10, correct: filter.value.correct || undefined, subset: filter.value.subset || undefined, q: filter.value.q || undefined })
   samples.value = r.items
+  for (const x of r.items) if (x.review_note && noteDraft.value[x.id] === undefined) noteDraft.value[x.id] = x.review_note
   sampleTotal.value = r.total
 }
 onMounted(async () => {
@@ -70,7 +72,27 @@ const retry = () => act(() => api.retryRun(id), '已重新排队')
 async function rerun() { const r = await api.rerun(id); message.success('已创建新任务'); await router.push(`/runs/${r.id}`); location.reload() }
 async function showLog() { logLoading.value = true; try { logText.value = (await api.log(id)) || '（还没有日志）' } finally { logLoading.value = false } }
 
-const verdict = (s: Sample): ['good' | 'bad' | 'warn' | '', string] => (s.error ? ['warn', '出错'] : s.is_correct === true ? ['good', '答对'] : s.is_correct === false ? ['bad', '答错'] : ['', '未判定'])
+const final = (s: Sample) => (s.final_correct !== null && s.final_correct !== undefined ? s.final_correct : s.is_correct)
+const verdict = (s: Sample): ['good' | 'bad' | 'warn' | '', string] => (s.error ? ['warn', '出错'] : final(s) === true ? ['good', '答对'] : final(s) === false ? ['bad', '答错'] : ['', '未判定'])
+/** where the shown verdict comes from, when it is not just the engine's */
+const source = (s: Sample): string | null => (s.review_correct !== null ? (s.review_correct !== s.is_correct ? '人工改判' : '人工确认') : s.auto_correct ? '宽松匹配通过' : null)
+async function review(s: Sample, correct: boolean | null) {
+  const updated = await api.reviewSample(id, s.id, correct, correct === null ? undefined : noteDraft.value[s.id] || s.review_note || undefined)
+  Object.assign(s, updated)
+  await loadRun()
+  if (filter.value.correct) await loadSamples()
+}
+async function saveNote(s: Sample) {
+  if (s.review_correct === null) return
+  Object.assign(s, await api.reviewSample(id, s.id, s.review_correct, noteDraft.value[s.id] ?? ''))
+  message.success('备注已保存')
+}
+async function rescore() {
+  const r = await api.rescore(id)
+  if (r.skipped_reason_judge) return void Modal.info({ title: '这个任务用了裁判模型', content: '裁判模型已经按语义判过对错，宽松匹配不再重复判断。可以在样本里手动改判。' })
+  message.success(`重新评分完成：检查了 ${r.checked} 题，${r.upgraded} 题按宽松规则判为答对`)
+  await loadRun(); await loadSamples()
+}
 const pretty = (o: unknown) => JSON.stringify(o, null, 1)
 const imgs = (s: Sample) => s.media.map((m, k) => ({ m, k })).filter((x) => x.m.type === 'image' && x.m.kind !== 'missing')
 const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
@@ -115,6 +137,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
           <div class="muted">{{ primary.label }} · 主指标</div>
           <div class="hero-value">{{ fmtMetric(primary) }}</div>
           <div class="muted" style="font-size: 13px">{{ primary.key }} · {{ primary.num }} 题<span v-if="wrongCount"> · 约 {{ wrongCount }} 题答错</span></div>
+          <a-tooltip v-if="run.adjusted" :title="`上面是引擎的原始得分。宽松匹配 ${run.adjusted.n_lenient} 题、人工改判 ${run.adjusted.n_manual} 题后重新计算的得分是 ${run.adjusted.display}。`"><div class="adj">复核后 {{ run.adjusted.display }} · 宽松匹配 {{ run.adjusted.n_lenient }} · 人工改判 {{ run.adjusted.n_manual }}</div></a-tooltip>
         </div>
         <div class="row" style="gap: 12px; flex-wrap: wrap">
           <div v-for="k in ['latency_mean', 'input_tokens_mean', 'output_tokens_mean']" :key="k" class="hero-stat">
@@ -163,7 +186,8 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
       <!-- samples -->
       <a-tab-pane key="samples" :tab="`样本 ${sampleTotal}`">
         <div class="row" style="margin-bottom: 14px; flex-wrap: wrap; gap: 12px">
-          <a-segmented v-model:value="filter.correct" :options="[{ value: '', label: '全部' }, { value: 'false', label: '答错' }, { value: 'error', label: '出错' }, { value: 'true', label: '答对' }]" />
+          <a-segmented v-model:value="filter.correct" :options="[{ value: '', label: '全部' }, { value: 'false', label: '答错' }, { value: 'error', label: '出错' }, { value: 'true', label: '答对' }, { value: 'changed', label: '有改判' }]" />
+          <a-tooltip title="不重新调用模型：对已有的回答再按宽松规则检查一遍（忽略大小写、标点，数值忽略 %、千分位、单位）。引擎原始得分不会被改。"><a-button @click="rescore">重新评分（宽松匹配）</a-button></a-tooltip>
           <a-select v-if="subsets.length > 1" v-model:value="filter.subset" allow-clear placeholder="全部子集" style="width: 160px" :options="subsets.map((s) => ({ value: s, label: s }))" />
           <a-input v-model:value="filter.q" allow-clear placeholder="搜索问题 / 答案 / 回答" style="width: 260px" />
         </div>
@@ -172,6 +196,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         <div v-for="s in samples" :key="s.id" class="card verdict" :class="verdict(s)[0]" style="margin-bottom: 14px; overflow: hidden">
           <div class="row-between" style="padding: 12px 20px; border-bottom: 1px solid var(--c-border)">
             <div class="row"><a-tag :color="verdict(s)[0] === 'good' ? 'success' : verdict(s)[0] === 'bad' ? 'error' : verdict(s)[0] === 'warn' ? 'warning' : 'default'" style="margin: 0">{{ verdict(s)[1] }}</a-tag>
+              <a-tooltip v-if="source(s)" :title="s.review_correct !== null ? `引擎判的是：${s.is_correct ? '答对' : '答错'}${s.review_note ? '；备注：' + s.review_note : ''}` : s.auto_reason"><a-tag color="processing" style="margin: 0">{{ source(s) }}</a-tag></a-tooltip>
               <span class="muted">{{ subsets.length > 1 ? s.subset + ' · ' : '' }}#{{ s.idx }}</span></div>
             <div class="faint mono">{{ s.latency ? s.latency.toFixed(2) + ' s · ' : '' }}输入 {{ s.input_tokens ?? '-' }} / 输出 {{ s.output_tokens ?? '-' }} token</div>
           </div>
@@ -195,8 +220,15 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
                 <div v-else-if="s.scores && 'should_call_tool' in s.scores"><div class="label">工具调用</div><div class="answer-box">模型没有调用工具</div></div>
               </div>
               <a-collapse v-if="s.judge_output" ghost style="margin-top: 8px"><a-collapse-panel key="j" header="裁判输出"><div class="pre" style="font-size: 13px">{{ s.judge_output }}</div></a-collapse-panel></a-collapse>
-              <div class="faint mono" style="margin-top: 10px">{{ pretty(s.scores).replace(/\n/g, ' ') }}</div>
+              <div v-if="s.scores && Object.keys(s.scores).length" class="faint mono" style="margin-top: 10px">{{ pretty(s.scores).replace(/\n/g, ' ') }}</div>
               <div v-if="s.error" style="color: var(--c-bad); margin-top: 6px">错误：{{ s.error }}</div>
+              <div v-if="!s.error" class="review">
+                <span class="faint">人工复核</span>
+                <a-button size="small" :type="s.review_correct === true ? 'primary' : 'default'" @click="review(s, s.review_correct === true ? null : true)">判对</a-button>
+                <a-button size="small" :danger="s.review_correct === false" :type="s.review_correct === false ? 'primary' : 'default'" @click="review(s, s.review_correct === false ? null : false)">判错</a-button>
+                <a-input v-if="s.review_correct !== null" v-model:value="noteDraft[s.id]" size="small" :placeholder="s.review_note || '备注（可选，失焦保存）'" style="width: 260px" @blur="saveNote(s)" />
+                <span v-if="s.review_correct !== null" class="faint" style="font-size: 12px">再点一次取消</span>
+              </div>
             </div>
           </div>
         </div>
@@ -228,6 +260,8 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
 .title { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
 .hero-value { font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 4px 0; font-variant-numeric: tabular-nums; }
 .hero-stat { background: rgba(255, 255, 255, 0.14); border-radius: 12px; padding: 10px 16px; min-width: 120px; backdrop-filter: blur(4px); }
+.adj { margin-top: 6px; display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); cursor: help; }
+.review { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--c-border); flex-wrap: wrap; }
 .sample-body { display: flex; gap: 20px; padding: 16px 20px; }
 .media { flex: none; width: 220px; }
 .q { font-size: 14px; max-height: 140px; overflow: auto; margin-bottom: 12px; line-height: 1.6; }

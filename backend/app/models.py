@@ -138,6 +138,13 @@ class SampleResult(Base):
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Review layer (all nullable: see services/rescoring.py). is_correct/score above stay the engine's verdict.
+    auto_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # lenient re-check says right
+    auto_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # a person's decision
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    final_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # review > lenient > engine
 
 
 class Setting(Base):

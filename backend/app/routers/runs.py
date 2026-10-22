@@ -14,7 +14,8 @@ from ..crypto import decrypt, redact
 from ..db import get_db
 from ..errors import ApiError
 from ..models import Dataset, ModelEndpoint, Run, RunMetric, SampleResult, utcnow
-from ..schemas import EstimateIn, MetricOut, Page, RunCreate, RunOut, SampleOut
+from ..schemas import EstimateIn, MetricOut, Page, ReviewIn, RunCreate, RunOut, SampleOut
+from ..services.rescoring import adjusted_scores, final_verdict, rescore_run, reviewed_counts
 from ..services.budget import get_budget, month_usage
 from ..worker import run_dir
 
@@ -29,7 +30,7 @@ def _fmt(m: RunMetric) -> str:
     return "-" if v is None else f"{v:.{m.precision}f}{m.display_unit}"
 
 
-def run_out(run: Run, headline: RunMetric | None) -> RunOut:
+def run_out(run: Run, headline: RunMetric | None, adjusted: dict | None = None) -> RunOut:
     return RunOut(
         id=run.id, model_id=run.model_id, model_name=run.model.name, dataset_id=run.dataset_id,
         dataset_name=run.dataset.name, dataset_version=run.dataset.version, judge_model_id=run.judge_model_id,
@@ -39,6 +40,7 @@ def run_out(run: Run, headline: RunMetric | None) -> RunOut:
         finished_at=run.finished_at, attempts=run.attempts or 1, reused_samples=run.reused_samples,
         input_tokens=run.input_tokens, output_tokens=run.output_tokens, cost=run.cost, stop_reason=run.stop_reason,
         headline=None if headline is None else {"label": headline.label, "value": headline.value, "display": _fmt(headline)},
+        adjusted=None if adjusted is None else {k: adjusted[k] for k in ("adjusted", "display", "n_lenient", "n_manual")},
     )
 
 
@@ -47,6 +49,15 @@ def _headlines(db: Session, run_ids: list[int]) -> dict[int, RunMetric]:
         return {}
     rows = db.scalars(select(RunMetric).where(RunMetric.run_id.in_(run_ids), RunMetric.primary.is_(True), RunMetric.subset == "OVERALL"))
     return {m.run_id: m for m in rows}
+
+
+def _adjusted(db: Session, run_ids: list[int]) -> dict[int, dict]:
+    out = {}
+    for rid in (i for i, (a, m) in reviewed_counts(db, run_ids).items() if a or m):
+        adj = adjusted_scores(db, rid)
+        if adj:
+            out[rid] = adj
+    return out
 
 
 def get_or_404(db: Session, run_id: int) -> Run:
@@ -188,13 +199,14 @@ def list_runs(
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     runs = db.scalars(q.order_by(Run.id.desc()).limit(page_size).offset((page - 1) * page_size)).all()
     hl = _headlines(db, [r.id for r in runs])
-    return Page(items=[run_out(r, hl.get(r.id)) for r in runs], total=total, page=page, page_size=page_size)
+    adj = _adjusted(db, [r.id for r in runs])
+    return Page(items=[run_out(r, hl.get(r.id), adj.get(r.id)) for r in runs], total=total, page=page, page_size=page_size)
 
 
 @router.get("/{run_id}", response_model=RunOut)
 def get_run(run_id: int, db: Session = Depends(get_db)):
     r = get_or_404(db, run_id)
-    return run_out(r, _headlines(db, [r.id]).get(r.id))
+    return run_out(r, _headlines(db, [r.id]).get(r.id), _adjusted(db, [r.id]).get(r.id))
 
 
 # ------------------------------------------------------------------ control
@@ -254,9 +266,11 @@ def _sample_filters(run_id: int, subset: str | None, correct: str | None, q: str
     if subset:
         conds.append(SampleResult.subset == subset)
     if correct == "true":
-        conds.append(SampleResult.is_correct.is_(True))
+        conds.append(func.coalesce(SampleResult.final_correct, SampleResult.is_correct).is_(True))
     elif correct == "false":
-        conds.append(SampleResult.is_correct.is_(False))
+        conds.append(func.coalesce(SampleResult.final_correct, SampleResult.is_correct).is_(False))
+    elif correct == "changed":  # lenient upgrades and manual decisions that differ from the engine
+        conds.append(or_(SampleResult.auto_correct.is_(True), SampleResult.review_correct.is_not(None)))
     elif correct == "error":
         conds.append(SampleResult.error.is_not(None))
     if q:
@@ -267,7 +281,7 @@ def _sample_filters(run_id: int, subset: str | None, correct: str | None, q: str
 
 @router.get("/{run_id}/samples", response_model=Page)
 def samples(
-    run_id: int, subset: str | None = None, correct: str | None = Query(None, pattern="^(true|false|error)$"), q: str | None = None,
+    run_id: int, subset: str | None = None, correct: str | None = Query(None, pattern="^(true|false|error|changed)$"), q: str | None = None,
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), db: Session = Depends(get_db),
 ):
     get_or_404(db, run_id)
@@ -276,6 +290,35 @@ def samples(
     rows = db.scalars(select(SampleResult).where(*conds).order_by(SampleResult.subset, SampleResult.idx, SampleResult.id)
                       .limit(page_size).offset((page - 1) * page_size)).all()
     return Page(items=[SampleOut.model_validate(s) for s in rows], total=total, page=page, page_size=page_size)
+
+
+@router.put("/{run_id}/samples/{sample_id}/review", response_model=SampleOut)
+def review_sample(run_id: int, sample_id: int, body: ReviewIn, db: Session = Depends(get_db)):
+    """Record a person's verdict for one answer (correct=null clears it). The engine's own verdict is kept."""
+    s = db.get(SampleResult, sample_id)
+    if not s or s.run_id != run_id:
+        raise ApiError("sample_not_found", "没有这个样本", 404)
+    s.review_correct = body.correct
+    s.review_note = (body.note or None) if body.correct is not None else None
+    s.reviewed_at = utcnow() if body.correct is not None else None
+    s.final_correct = final_verdict(s)
+    db.commit()
+    return SampleOut.model_validate(s)
+
+
+@router.post("/{run_id}/rescore")
+def rescore(run_id: int, db: Session = Depends(get_db)):
+    """Re-apply lenient matching to a finished run's stored answers (no model calls; manual reviews are kept)."""
+    r = get_or_404(db, run_id)
+    if r.status != "completed":
+        raise ApiError("not_completed", "任务完成后才能重新评分", 409)
+    return rescore_run(db, r)
+
+
+@router.get("/{run_id}/adjusted")
+def adjusted(run_id: int, db: Session = Depends(get_db)):
+    get_or_404(db, run_id)
+    return adjusted_scores(db, run_id)
 
 
 @router.get("/{run_id}/samples/{sample_id}/media/{k}")
@@ -309,7 +352,7 @@ def _csv_safe(v: Any) -> Any:
 @router.get("/{run_id}/export")
 def export(run_id: int, db: Session = Depends(get_db)):
     get_or_404(db, run_id)
-    cols = ["idx", "subset", "question", "target", "prediction", "extracted", "score", "is_correct", "latency", "input_tokens",
+    cols = ["idx", "subset", "question", "target", "prediction", "extracted", "score", "is_correct", "final_correct", "auto_reason", "review_note", "latency", "input_tokens",
             "output_tokens", "error"]
 
     def rows():
