@@ -143,3 +143,16 @@ def test_prepare_anthropic_and_builtin(tmp_path):
 ])
 def test_progress_from_log(tail, stage, progress):
     assert EvalScopeAdapter().progress(tail) == (stage, progress)
+
+
+def test_judge_output_is_the_judges_reply_not_the_raw_api_response():
+    import json
+
+    from app.engines.evalscope_results import judge_text
+
+    reply = {"id": "x", "model": "m", "choices": [{"message": {"role": "assistant", "content": '```json\n{\n "reasoning": "Matches the reference.",\n "verdict": "A"\n}\n```'}}]}
+    for raw in (reply, json.dumps(reply)):  # EvalScope has stored it both ways
+        assert judge_text(raw) == "结论：A\nMatches the reference."
+    assert judge_text({"choices": [{"message": {"content": "GRADE: C"}}]}) == "GRADE: C"
+    assert judge_text("plain text") == "plain text"
+    assert judge_text({"unexpected": 1}) == '{"unexpected": 1}'

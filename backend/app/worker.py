@@ -194,11 +194,13 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None, worker_id: st
         _update(run_id, pid=proc.pid, stage="preparing")
         tracker = adapter.usage_tracker(ctx)
         started = time.time()
-        cancelled = timed_out = lost = shutdown = False
+        cancelled = timed_out = lost = shutdown = stalled = False
         stop = None
         last_stage: tuple[str, float | None] = ("preparing", None)
         last_usage: tuple[int, int] = (-1, -1)
         tick = 0
+        last_activity: tuple | None = None
+        idle_since = time.time()
 
         def sync_usage() -> tuple[Usage, float | None]:
             """Persist billed usage whenever it changed; returns (usage, money spent or None if the model has no price)."""
@@ -239,6 +241,15 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None, worker_id: st
             if stage != last_stage:
                 last_stage = stage
                 _update(run_id, stage=stage[0], progress=stage[1] or 0.0)
+            # No new answer and no progress for a long time (not while downloading data: that is slow but fine) means the
+            # provider is hanging; stop instead of waiting for the overall time limit.
+            activity = (usage.input_tokens, usage.output_tokens, stage)
+            if activity != last_activity:
+                last_activity, idle_since = activity, time.time()
+            elif settings.stall_timeout_sec and stage[0] != "downloading" and time.time() - idle_since > settings.stall_timeout_sec:
+                stalled = True
+                _terminate(proc)
+                break
 
         if lost:
             log.warning("run %s was taken over by another worker; this one stops", run_id)
@@ -254,6 +265,12 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None, worker_id: st
         if stop:
             final = _budget_stop(run_id, usage, cost, ctx.batch_size) or stop  # recomputed with the usage written up to the kill
             _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(), stop_reason=final[0], error=final[1])
+            return "failed"
+        if stalled:
+            msg = f"评测超过 {settings.stall_timeout_sec // 60} 分钟没有任何进展（没有新的回答），服务商可能卡住了，已终止"
+            if _auto_retry(run_id, msg):
+                return "retrying"
+            _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(), error=msg)
             return "failed"
         if timed_out:
             _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(),

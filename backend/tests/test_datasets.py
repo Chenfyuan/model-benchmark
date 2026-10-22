@@ -136,3 +136,20 @@ def test_tsv_kind_mismatch_and_missing_columns(tmp_path):
     # the row validator still applies to converted rows: answer D is outside the two options
     with pytest.raises(DatasetError, match="超出选项范围"):
         ingest_upload("vmcq", "d.tsv", _tsv(["question", "A", "B", "answer"], [["q", "x", "y", "D"]]), tmp_path / "d", 5)
+
+
+def test_reseeding_syncs_verified_flags_of_an_older_database(client):
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import Dataset
+    from app.services.catalog import seed_builtin
+
+    with SessionLocal() as db:
+        row = db.scalar(select(Dataset).where(Dataset.benchmark_id == "ai2d"))
+        row.verified, row.description = False, "old text"
+        db.commit()
+        seed_builtin(db)
+        row = db.scalar(select(Dataset).where(Dataset.benchmark_id == "ai2d"))
+        assert row.verified is True and row.description != "old text"
+        assert len(db.scalars(select(Dataset).where(Dataset.benchmark_id == "ai2d")).all()) == 1

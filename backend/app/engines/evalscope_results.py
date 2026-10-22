@@ -118,6 +118,33 @@ def _store_media(part: dict[str, Any], kind: str, media_dir: Path, stem: str) ->
     return {"type": kind, "kind": "missing", "ref": value[:120]}
 
 
+def judge_text(model_output: Any) -> str | None:
+    """The judge's reply as readable text. EvalScope stores the judge's whole API response (a dict or its JSON string)."""
+    obj = model_output
+    if isinstance(obj, str):
+        try:
+            obj = json.loads(obj)
+        except json.JSONDecodeError:
+            return obj  # already plain text
+    try:
+        text = obj["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return _clip(model_output)
+    if not isinstance(text, str):  # content blocks
+        text = "".join(b.get("text", "") for b in text if isinstance(b, dict)) if isinstance(text, list) else str(text)
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`").removeprefix("json").strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    if isinstance(data, dict) and ("verdict" in data or "reasoning" in data):
+        verdict = f"结论：{data['verdict']}\n" if "verdict" in data else ""
+        return (verdict + str(data.get("reasoning", ""))).strip()
+    return text
+
+
 def parse_review_row(row: dict[str, Any], subset: str, media_dir: Path) -> dict[str, Any]:
     idx = row.get("index", 0)
     question_parts: list[str] = []
@@ -165,7 +192,7 @@ def parse_review_row(row: dict[str, Any], subset: str, media_dir: Path) -> dict[
         scores=score.get("value") if isinstance(score.get("value"), dict) else {},
         score=value,
         is_correct=None if value is None else value >= 1.0,
-        judge_output=_clip(attempts[0].get("model_output")) if attempts else None,
+        judge_output=_clip(judge_text(attempts[0].get("model_output"))) if attempts else None,
         latency=perf.get("latency"),
         input_tokens=perf.get("input_tokens"),
         output_tokens=perf.get("output_tokens"),

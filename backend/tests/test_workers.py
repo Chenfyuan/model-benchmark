@@ -259,3 +259,31 @@ def test_judge_only_benchmark_needs_a_judge(client, model):
     judge = client.post("/api/v1/models", json={**MODEL, "name": "judge"}).json()
     ok = client.post("/api/v1/runs", json={"model_ids": [model["id"]], "dataset_ids": [ds["charxiv"]["id"]], "judge_model_id": judge["id"]})
     assert ok.status_code == 201
+
+
+def test_a_hanging_provider_is_detected_and_retried(client, model, vmcq_dataset, tmp_path, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "stall_timeout_sec", 4)
+    monkeypatch.setattr(get_settings(), "auto_retry_base_sec", 60)
+    (rid,) = queue(client, model, vmcq_dataset)
+    assert worker.claim_next("w:1:0") == rid
+    # one answer arrives, then the provider hangs: the next sample would take 60 s
+    adapter = FakeAdapter("slow", n=10, delay=60, calls_file=str(tmp_path / "c"))
+    started = time.time()
+    assert worker.process_run(rid, adapter, worker_id="w:1:0") == "retrying"
+    assert time.time() - started < 30
+    r = client.get(f"/api/v1/runs/{rid}").json()
+    assert r["status"] == "queued" and r["auto_retries"] == 1 and "没有任何进展" in r["error"]
+
+
+def test_stall_watchdog_can_be_turned_off_and_gives_up_after_the_retries(client, model, vmcq_dataset, tmp_path, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "stall_timeout_sec", 3)
+    monkeypatch.setattr(get_settings(), "auto_retry_max", 0)
+    (rid,) = queue(client, model, vmcq_dataset)
+    assert worker.claim_next("w:1:0") == rid
+    assert worker.process_run(rid, FakeAdapter("slow", n=10, delay=60, calls_file=str(tmp_path / "c")), worker_id="w:1:0") == "failed"
+    r = client.get(f"/api/v1/runs/{rid}").json()
+    assert r["status"] == "failed" and "没有任何进展" in r["error"]
