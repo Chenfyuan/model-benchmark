@@ -127,6 +127,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
       <div style="font-size: 16px; font-weight: 600; margin-top: 12px">{{ run.status === 'queued' ? '排队中，等待 Worker 取走' : '评测进行中' }}</div>
       <a-progress v-if="run.status === 'running' && run.stage === 'evaluating'" :percent="Math.round(run.progress * 100)" style="max-width: 420px; margin: 8px auto 0" />
       <div v-if="run.input_tokens != null" class="muted" style="font-size: 13px; margin-top: 4px">已用 {{ fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0)) }} token<span v-if="run.cost != null">，约 {{ fmtCost(run.cost) }}</span></div>
+      <div v-if="run.status === 'queued'" class="muted" style="font-size: 13px; margin-top: 4px">如果迟迟不开始：没有空闲的 Worker，或者同一个模型已有任务在跑（默认依次运行）</div>
       <div class="muted" style="font-size: 13px; margin-top: 4px">完成后这里会自动显示结果</div>
     </div>
 

@@ -22,6 +22,8 @@ class Settings:
         self.max_upload_mb = int(os.environ.get("MAX_UPLOAD_MB", "100"))
         self.run_timeout_sec = int(os.environ.get("RUN_TIMEOUT_SEC", str(6 * 3600)))
         self.worker_poll_sec = float(os.environ.get("WORKER_POLL_SEC", "2"))
+        self.worker_concurrency = max(1, int(os.environ.get("WORKER_CONCURRENCY", "1")))  # runs one worker process handles at once
+        self.worker_stale_sec = int(os.environ.get("WORKER_STALE_SEC", "45"))  # no heartbeat for this long = the worker is gone
         self.frontend_dist = Path(os.environ.get("FRONTEND_DIST", REPO_ROOT / "frontend" / "dist"))
 
     def secret_key(self) -> bytes:

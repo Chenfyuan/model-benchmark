@@ -11,7 +11,10 @@ export interface CheckResult {
 export interface ModelEndpoint {
   id: number; name: string; protocol: 'openai' | 'anthropic'; base_url: string; model_name: string
   api_key_hint: string; price_input_per_mtok: number | null; price_output_per_mtok: number | null
-  last_check: CheckResult | null; created_at: string
+  last_check: CheckResult | null; created_at: string; max_parallel_runs: number | null
+}
+export interface WorkerStatus {
+  slots: { id: string; host: string; run_id: number | null }[]; alive: number; idle: number; queued: number; running: number
 }
 export interface Dataset {
   id: number; name: string; version: number; source: 'builtin' | 'custom'; kind: string
@@ -87,6 +90,7 @@ http.interceptors.response.use(
 declare module 'axios' { interface AxiosRequestConfig { silent?: boolean } }
 
 export const api = {
+  workers: (silent = false) => http.get<WorkerStatus>('/workers', { silent }).then((r) => r.data),
   models: () => http.get<ModelEndpoint[]>('/models').then((r) => r.data),
   createModel: (b: object) => http.post<ModelEndpoint>('/models', b).then((r) => r.data),
   updateModel: (id: number, b: object) => http.put<ModelEndpoint>(`/models/${id}`, b).then((r) => r.data),

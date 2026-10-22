@@ -30,6 +30,8 @@ class ModelEndpoint(Base):
     price_output_per_mtok: Mapped[float | None] = mapped_column(Float, nullable=True)
     last_check: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # how many runs of this model may be evaluated at the same time (NULL = 1); each run already sends `batch_size` requests at once
+    max_parallel_runs: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Dataset(Base):
@@ -81,6 +83,7 @@ class Run(Base):
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)  # None when the model has no price set
     stop_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)  # budget_run | budget_month
+    worker_id: Mapped[str | None] = mapped_column(String(100), nullable=True)  # the worker slot that owns this run while it is running
 
     limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # snapshot of everything that affects scores
@@ -145,6 +148,19 @@ class SampleResult(Base):
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     final_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # review > lenient > engine
+
+
+class Worker(Base):
+    """One worker slot (a worker process runs `WORKER_CONCURRENCY` of them). Alive = recent heartbeat."""
+
+    __tablename__ = "worker"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # host:pid:slot
+    host: Mapped[str] = mapped_column(String(100))
+    pid: Mapped[int] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the run it is working on, if any
 
 
 class Setting(Base):

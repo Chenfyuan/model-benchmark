@@ -1,4 +1,5 @@
 # docker compose up -d --build   ->  http://localhost:8000
+# More workers: docker compose up -d --scale worker=3  (or WORKER_CONCURRENCY=3 for one process, several runs)
 # The key that encrypts saved model API keys lives in the data volume (secret.key). Back it up together with app.db.
 services:
   api:
@@ -10,6 +11,7 @@ services:
     build: .
     command: ["python", "-m", "app.worker"]
     volumes: ["data:/data"]
+    stop_grace_period: 30s   # lets a stopping worker hand its runs back to the queue
     restart: unless-stopped
 volumes:
   data:

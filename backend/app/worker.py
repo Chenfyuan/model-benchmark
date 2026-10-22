@@ -1,7 +1,13 @@
 """Background worker: takes queued runs, runs the engine in a subprocess, stores normalised results.
 
-Run with:  python -m app.worker
-One run at a time per worker process. On start-up, runs left in `running` by a crashed worker are re-queued.
+Run with:  python -m app.worker        (WORKER_CONCURRENCY=N handles N runs at once; start more processes to scale out)
+
+Any number of workers, on any number of machines sharing the database and data directory, may run at once:
+  * a run is claimed with one atomic UPDATE, so two workers never take the same run;
+  * a model's runs are limited to `ModelEndpoint.max_parallel_runs` (default 1) at a time, so the provider is not flooded;
+  * every worker slot heartbeats; a run whose worker stopped heartbeating is re-queued by the others and continues from
+    its finished samples (the orphaned engine process is killed if it is on this host);
+  * on SIGTERM a worker stops taking work, stops its engines and re-queues its runs (they resume where they were).
 """
 from __future__ import annotations
 
@@ -9,24 +15,30 @@ import logging
 import os
 import shutil
 import signal
+import socket
 import subprocess
+import threading
 import time
+from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.orm import aliased
 
 from .config import get_settings
 from .crypto import decrypt, redact
 from .db import SessionLocal, init_db
 from .engines import get_adapter
 from .engines.base import Endpoint, EngineAdapter, ParsedResult, RunContext, Usage
-from .models import ModelEndpoint, Run, RunMetric, SampleResult, utcnow
+from .models import ModelEndpoint, Run, RunMetric, SampleResult, Worker, utcnow
 from .services.rescoring import apply_lenient
 from .services.budget import check as check_budget
 from .services.budget import get_budget, month_usage, run_cost
 
 log = logging.getLogger("worker")
 LOG_TAIL_BYTES = 16000
+SHUTDOWN = threading.Event()  # set on SIGTERM / SIGINT: stop claiming, hand running runs back to the queue
+HEARTBEAT_SEC = 5
 
 
 def _endpoint(m: ModelEndpoint) -> Endpoint:
@@ -130,8 +142,12 @@ def _budget_stop(run_id: int, usage: Usage, cost: float | None, in_flight: int =
     return reason, f"{message}，已停止。{keep}{lost}"
 
 
-def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
-    """Execute one run that is already marked `running`. Returns the final status."""
+def process_run(run_id: int, adapter: EngineAdapter | None = None, worker_id: str | None = None) -> str:
+    """Execute one run that is already marked `running`. Returns the final status.
+
+    With a `worker_id` the run must stay owned by that worker; if another worker has taken it over (this one looked dead)
+    the engine is stopped and nothing more is written (returns "lost"). Returns "requeued" on shutdown.
+    """
     settings = get_settings()
     secrets: list[str] = []
     try:
@@ -173,7 +189,7 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
         _update(run_id, pid=proc.pid, stage="preparing")
         tracker = adapter.usage_tracker(ctx)
         started = time.time()
-        cancelled = timed_out = False
+        cancelled = timed_out = lost = shutdown = False
         stop = None
         last_stage: tuple[str, float | None] = ("preparing", None)
         last_usage: tuple[int, int] = (-1, -1)
@@ -193,7 +209,15 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
             time.sleep(1)
             tick += 1
             with SessionLocal() as db:
-                cancelled = bool(db.scalar(select(Run.cancel_requested).where(Run.id == run_id)))
+                cancelled, owner, status = db.execute(select(Run.cancel_requested, Run.worker_id, Run.status).where(Run.id == run_id)).one()
+            if worker_id and (owner != worker_id or status != "running"):
+                lost = True
+                _terminate(proc)
+                break
+            if SHUTDOWN.is_set():
+                shutdown = True
+                _terminate(proc)
+                break
             if cancelled:
                 _terminate(proc)
                 break
@@ -211,7 +235,13 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
                 last_stage = stage
                 _update(run_id, stage=stage[0], progress=stage[1] or 0.0)
 
+        if lost:
+            log.warning("run %s was taken over by another worker; this one stops", run_id)
+            return "lost"
         usage, cost = sync_usage()  # whatever the engine managed to write before it stopped
+        if shutdown:
+            _update(run_id, status="queued", stage="queued", pid=None, worker_id=None, resume=True)
+            return "requeued"
         log_text = _read_tail(prepared.log_path)
         if cancelled:
             _update(run_id, status="cancelled", stage="done", pid=None, finished_at=utcnow())
@@ -240,43 +270,126 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
         return "failed"
 
 
-def claim_next() -> int | None:
+def claim_next(worker_id: str | None = None) -> int | None:
+    """Atomically take the oldest queued run whose model has a free slot. Returns its id, or None."""
+    running = aliased(Run)
     with SessionLocal() as db:
-        run_id = db.scalar(select(Run.id).where(Run.status == "queued").order_by(Run.id).limit(1))
-        if run_id is None:
-            return None
-        res = db.execute(
-            update(Run).where(Run.id == run_id, Run.status == "queued").values(
-                status="running", stage="preparing", progress=0.0, started_at=utcnow(), finished_at=None,
-                error=None, cancel_requested=False,
+        candidates = db.scalars(select(Run.id).where(Run.status == "queued").order_by(Run.id).limit(50)).all()
+        for run_id in candidates:
+            in_use = select(func.count()).select_from(running).where(running.model_id == Run.model_id, running.status == "running").correlate(Run).scalar_subquery()
+            allowed = func.coalesce(select(ModelEndpoint.max_parallel_runs).where(ModelEndpoint.id == Run.model_id).correlate(Run).scalar_subquery(), 1)
+            res = db.execute(
+                update(Run).where(Run.id == run_id, Run.status == "queued", in_use < allowed).values(
+                    status="running", stage="preparing", progress=0.0, started_at=utcnow(), finished_at=None,
+                    error=None, cancel_requested=False, worker_id=worker_id,
+                )
             )
-        )
-        db.commit()
-        return run_id if res.rowcount else None
+            db.commit()
+            if res.rowcount:  # lost the race for this one, or its model is busy: try the next candidate
+                return run_id
+        return None
 
 
-def requeue_stale() -> int:
+def _kill_orphan(run_id: int, pid: int | None, host: str | None) -> None:
+    """The engine of a run whose worker died may still be running (it has its own session). Kill it if it is ours to kill."""
+    if not pid or host != socket.gethostname():
+        return
+    try:  # pids get reused: only touch a process that is demonstrably this run's engine
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            if str(run_dir(run_id)) not in f.read().decode(errors="replace"):  # the engine is started with <run dir>/task.json
+                return
+        os.killpg(pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        pass
+
+
+def requeue_stale(stale_sec: int | None = None) -> int:
+    """Hand back running runs whose worker is gone (no recent heartbeat, or an old single-worker row with no owner).
+
+    They continue from the samples already answered. Safe to call from every worker at any time.
+    """
+    stale_sec = get_settings().worker_stale_sec if stale_sec is None else stale_sec
+    n = 0
     with SessionLocal() as db:
-        res = db.execute(update(Run).where(Run.status == "running").values(status="queued", stage="queued", pid=None))
+        alive = set(db.scalars(select(Worker.id).where(Worker.heartbeat_at > utcnow() - timedelta(seconds=stale_sec))))
+        hosts = dict(db.execute(select(Worker.id, Worker.host)).all())
+        for run_id, owner, pid in db.execute(select(Run.id, Run.worker_id, Run.pid).where(Run.status == "running")).all():
+            if owner is not None and owner in alive:
+                continue
+            res = db.execute(update(Run).where(Run.id == run_id, Run.status == "running", Run.worker_id.is_(owner) if owner is None else Run.worker_id == owner)
+                             .values(status="queued", stage="queued", pid=None, worker_id=None, resume=True))
+            db.commit()
+            if res.rowcount:
+                n += 1
+                _kill_orphan(run_id, pid, hosts.get(owner))
+        db.execute(delete(Worker).where(Worker.heartbeat_at < utcnow() - timedelta(days=1)))
         db.commit()
-        return res.rowcount
+    return n
+
+
+def _register(worker_id: str) -> None:
+    with SessionLocal() as db:
+        db.merge(Worker(id=worker_id, host=socket.gethostname(), pid=os.getpid(), started_at=utcnow(), heartbeat_at=utcnow(), run_id=None))
+        db.commit()
+
+
+def _heartbeat(worker_ids: list[str]) -> None:
+    with SessionLocal() as db:
+        db.execute(update(Worker).where(Worker.id.in_(worker_ids)).values(heartbeat_at=utcnow()))
+        db.commit()
+
+
+def _set_current(worker_id: str, run_id: int | None) -> None:
+    with SessionLocal() as db:
+        db.execute(update(Worker).where(Worker.id == worker_id).values(run_id=run_id, heartbeat_at=utcnow()))
+        db.commit()
+
+
+def slot_loop(worker_id: str) -> None:
+    """One worker slot: claim a run, process it, repeat until shutdown."""
+    poll = get_settings().worker_poll_sec
+    while not SHUTDOWN.is_set():
+        try:
+            requeue_stale()
+            run_id = claim_next(worker_id)
+        except Exception:  # noqa: BLE001  (a database hiccup must not kill the slot)
+            log.exception("%s: could not claim a run", worker_id)
+            SHUTDOWN.wait(poll)
+            continue
+        if run_id is None:
+            SHUTDOWN.wait(poll)
+            continue
+        _set_current(worker_id, run_id)
+        log.info("%s: run %s started", worker_id, run_id)
+        try:
+            log.info("%s: run %s finished: %s", worker_id, run_id, process_run(run_id, worker_id=worker_id))
+        finally:
+            _set_current(worker_id, None)
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     init_db()
-    n = requeue_stale()
-    if n:
-        log.info("re-queued %d run(s) left running by a previous worker", n)
-    log.info("worker started")
-    poll = get_settings().worker_poll_sec
-    while True:
-        run_id = claim_next()
-        if run_id is None:
-            time.sleep(poll)
-            continue
-        log.info("run %s started", run_id)
-        log.info("run %s finished: %s", run_id, process_run(run_id))
+    n = get_settings().worker_concurrency
+    ids = [f"{socket.gethostname()}:{os.getpid()}:{k}" for k in range(n)]
+    for w in ids:
+        _register(w)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: SHUTDOWN.set())
+    threads = [threading.Thread(target=slot_loop, args=(w,), name=w) for w in ids]
+    for t in threads:
+        t.start()
+    log.info("worker started: %d slot(s)", n)
+    while any(t.is_alive() for t in threads):
+        try:
+            _heartbeat(ids)
+        except Exception:  # noqa: BLE001
+            log.exception("heartbeat failed")
+        SHUTDOWN.wait(HEARTBEAT_SEC)
+    with SessionLocal() as db:
+        db.execute(delete(Worker).where(Worker.id.in_(ids)))
+        db.commit()
+    log.info("worker stopped")
 
 
 if __name__ == "__main__":

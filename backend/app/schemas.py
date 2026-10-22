@@ -18,6 +18,7 @@ class ModelCreate(BaseModel):
     api_key: str = Field(min_length=1)
     price_input_per_mtok: float | None = Field(default=None, ge=0)
     price_output_per_mtok: float | None = Field(default=None, ge=0)
+    max_parallel_runs: int | None = Field(default=None, ge=1, le=20)
 
     @field_validator("base_url")
     @classmethod
@@ -36,6 +37,7 @@ class ModelUpdate(BaseModel):
     api_key: str | None = Field(default=None, min_length=1)  # omit to keep the stored key
     price_input_per_mtok: float | None = Field(default=None, ge=0)
     price_output_per_mtok: float | None = Field(default=None, ge=0)
+    max_parallel_runs: int | None = Field(default=None, ge=1, le=20)
 
 
 class ModelOut(ORM):
@@ -47,6 +49,7 @@ class ModelOut(ORM):
     api_key_hint: str  # never the key itself
     price_input_per_mtok: float | None
     price_output_per_mtok: float | None
+    max_parallel_runs: int | None = None
     last_check: dict[str, Any] | None
     created_at: datetime
 

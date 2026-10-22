@@ -3,7 +3,7 @@ import { BarChartOutlined, DeleteOutlined, PlusOutlined, RedoOutlined, ReloadOut
 import { message } from 'ant-design-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, type Run } from '../api'
+import { api, type Run, type WorkerStatus } from '../api'
 import PageHeader from '../components/PageHeader.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import { STOP_REASON_LABEL, fmtAgo, fmtCost, fmtDuration, fmtTokens, isActive } from '../format'
@@ -15,6 +15,7 @@ const page = ref(1)
 const filter = ref<'all' | 'running' | 'completed' | 'failed'>('all')
 const loading = ref(true)
 const selected = ref<number[]>([])
+const workers = ref<WorkerStatus | null>(null)
 const counts = ref({ all: 0, running: 0, completed: 0, failed: 0 })
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -31,6 +32,7 @@ async function load(silent = false) {
     runs.value = r.items
     total.value = r.total
     await loadCounts()
+    workers.value = await api.workers(true).catch(() => null)
   } finally { loading.value = false }
 }
 const anyActive = computed(() => runs.value.some(isActive))
@@ -77,6 +79,11 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
       <a-button type="primary" size="large" @click="$router.push('/runs/new')"><template #icon><PlusOutlined /></template>发起评测</a-button>
     </PageHeader>
 
+    <a-alert v-if="workers && workers.alive === 0 && workers.queued > 0" type="warning" show-icon style="margin-bottom: 16px"
+      message="没有 Worker 在线，排队的任务不会开始" description="在服务器上启动 Worker：python -m app.worker（Docker 部署用 docker compose up -d worker）。" />
+    <div v-else-if="workers && workers.alive > 0" class="faint" style="margin: -6px 0 12px; font-size: 13px">
+      Worker：{{ workers.alive }} 个在线，{{ workers.idle }} 个空闲；{{ workers.running }} 个任务运行中<span v-if="workers.queued">，{{ workers.queued }} 个排队（同一个模型的任务默认依次运行）</span>
+    </div>
     <div class="grid grid-4" style="margin-bottom: 16px">
       <div class="card card-pad stat"><div class="muted">全部任务</div><div class="n">{{ counts.all }}</div></div>
       <div class="card card-pad stat"><div class="muted">运行中</div><div class="n" style="color: var(--c-primary)">{{ counts.running }}</div></div>

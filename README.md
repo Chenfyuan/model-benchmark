@@ -51,6 +51,10 @@
 | --- | --- |
 | ![人工复核](docs/images/review-samples.png) | ![复核后得分](docs/images/review-runs.png) |
 
+| 任务页顶部显示在线的 Worker | |
+| --- | --- |
+| ![Worker 状态](docs/images/workers-online.png) | |
+
 | 模型管理 | 连通测试 |
 | --- | --- |
 | ![模型管理](docs/images/models.png) | ![连通测试](docs/images/model-check.png) |
@@ -137,13 +141,29 @@ python -m app.worker                  # 终端 2
 - **要看错题，不要只看总分**：评分规则有时比较严格。例如 ChartQA 里模型答“6.8%”、标准答案是“6.8”，引擎会判 0 分；平台的宽松匹配会把这类标出来，但引擎得分本身不改。
 - **注意网关的固定开销**：有的网关会给每次请求附加固定内容（实测一个只有几个字的请求就报告了约 4100 个输入 token）。这会让 token 和费用偏高；如果是隐藏的系统提示，还可能影响模型行为。连通测试会对此给出提醒。
 
+## 多个 Worker 并行
+
+评测任务由 Worker 执行，可以同时开多个，互不干扰：
+
+```bash
+WORKER_CONCURRENCY=3 python -m app.worker      # 一个进程同时跑 3 个任务
+python -m app.worker                           # 或者多开几个进程，甚至放在多台机器上（共用数据库和数据目录）
+docker compose up -d --scale worker=3          # Docker：3 个 Worker 进程
+```
+
+- **同一个模型默认一次只跑一个任务**，免得把服务商的限流打满（每个任务自己还会按“并发”并行发请求）。能承受更多的话，在“模型管理”里调大这个模型的“同时评测的任务数”。不同模型的任务可以同时跑，所以“多个模型 × 一个评测集”的对比能真正并行。
+- 每个 Worker 定时上报心跳。**Worker 挂了**（崩溃、断电、被 `kill -9`），其他 Worker 在 `WORKER_STALE_SEC`（默认 45 秒）后接手它的任务，已经答完的样本不会重新计费；如果被遗弃的评测进程还在同一台机器上，会被杀掉。这 45 秒内，那个进程可能还在继续调用模型，所以在这段时间里会多花一点点用量。
+- **正常停止 Worker**（`SIGTERM` / `Ctrl+C`，`docker stop`）：它不再领新任务，停掉手上的评测，把任务放回队列，下一个 Worker 接着跑。
+- 任务页顶部显示在线的 Worker 数；有任务排队但没有 Worker 在线时会提示。
+- 领任务靠数据库里的一条原子更新，不会被两个 Worker 同时领走；“同一个模型的并行上限”在 SQLite 下是严格的，换成 PostgreSQL 时在极端并发下可能短暂多放过一个（PostgreSQL 本来也没测过）。
+
 ## Docker 部署
 
 ```bash
 docker compose up -d --build     # 打开 http://localhost:8000
 ```
 
-`api` 和 `worker` 两个服务共用一个数据卷（数据库、加密密钥、评测集、结果）。数据卷里的 `secret.key` 要和 `app.db` 一起备份。注意：这份 Docker 配置写好了，但我没能在开发环境里构建验证（环境里没有 Docker 服务），第一次用请留意。
+`api` 和 `worker` 两个服务共用一个数据卷（数据库、加密密钥、评测集、结果）；`docker compose up -d --scale worker=3` 可以开多个 Worker。数据卷里的 `secret.key` 要和 `app.db` 一起备份。注意：这份 Docker 配置写好了，但我没能在开发环境里构建验证（环境里没有 Docker 服务），第一次用请留意。
 
 仓库带了 GitHub Actions（`.github/workflows/ci.yml`）：后端测试，前端类型检查加构建。
 
@@ -159,6 +179,8 @@ docker compose up -d --build     # 打开 http://localhost:8000
 | `MAX_UPLOAD_MB` | `100` | 评测集上传大小上限 |
 | `RUN_TIMEOUT_SEC` | `21600` | 单个评测任务的运行时间上限（超时会终止） |
 | `WORKER_POLL_SEC` | `2` | Worker 轮询队列的间隔 |
+| `WORKER_CONCURRENCY` | `1` | 一个 Worker 进程同时跑几个评测任务 |
+| `WORKER_STALE_SEC` | `45` | 多久没有心跳就认为 Worker 已经挂了，由其他 Worker 接手它的任务 |
 | `FRONTEND_DIST` | `frontend/dist` | 前端构建产物目录 |
 
 ## API 概览
@@ -173,6 +195,7 @@ docker compose up -d --build     # 打开 http://localhost:8000
 | `POST /api/v1/runs/estimate` | 提交前的 token / 费用预估 |
 | `POST /api/v1/runs` | 发起评测（模型 × 评测集 各一个任务；支持 `Idempotency-Key` 请求头防重复提交） |
 | `GET /api/v1/runs`、`GET /runs/{id}` | 任务列表（可按状态筛选、分页）和详情 |
+| `GET /api/v1/workers` | 在线的 Worker 槽位、空闲数、排队和运行中的任务数 |
 | `POST /runs/{id}/cancel`、`/retry`、`/rerun`、`DELETE /runs/{id}` | 取消、重试、用相同配置重跑、删除 |
 | `GET /api/v1/compare?run_ids=1,2,3`、`GET /compare/samples` | 多任务对比：指标与可比性提醒；逐题对齐（`view=diff|all_wrong|all`） |
 | `GET/PUT /api/v1/settings/budget` | 费用限额与本月已用；`POST /runs` 预估超限返回 409 `budget_exceeded`，带 `confirm_over_budget: true` 再提交 |
@@ -222,7 +245,6 @@ cd frontend && npm run build     # 含 vue-tsc 类型检查
 
 - **没有登录和权限**：谁能访问就能看到所有模型和结果。部署前请放在内网，或者在前面加一层认证。（计划：简单账号，之后对接公司统一登录）
 - **续跑的两个细节**：停止瞬间正在进行的请求（最多等于并发数）服务商可能已计费，但结果没落盘，重试时会重发，所以记录的用量可能比实际少这几个请求；续跑任务的延迟、吞吐只统计新跑的样本。
-- **只有一个 Worker，一次跑一个任务。**
 - **费用限额只是防手滑，不是安全边界**：没有登录，确认弹窗谁都能点；费用只对填了单价的模型计算。
 - **裁判模型只支持 OpenAI 格式的接口**；视频 / 音频输入、“图片 + 工具调用”的组合没有验证过。
 - **内置基准里只有 `chartqa`、`docvqa`、`mm_bench` 在本平台实际跑通过**（页面上标“已跑通”），其余来自 EvalScope 的官方支持列表，没有在这里验证。

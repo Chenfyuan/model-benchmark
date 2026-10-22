@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from . import errors
 from .config import get_settings
 from .db import SessionLocal, init_db
-from .routers import compare, datasets, models, runs, settings
+from .routers import compare, datasets, models, runs, settings, workers
 from .services.catalog import seed_builtin
 
 
@@ -34,6 +34,7 @@ api.include_router(datasets.router)
 api.include_router(runs.router)
 api.include_router(compare.router)
 api.include_router(settings.router)
+api.include_router(workers.router)
 
 
 @api.get("/health")

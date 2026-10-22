@@ -14,7 +14,7 @@ const saving = ref(false)
 const checking = ref<number | null>(null)
 const checkView = ref<{ name: string; result: CheckResultT } | null>(null)
 
-const blank = () => ({ name: '', protocol: 'openai' as 'openai' | 'anthropic', base_url: '', model_name: '', api_key: '', price_input_per_mtok: null as number | null, price_output_per_mtok: null as number | null })
+const blank = () => ({ name: '', protocol: 'openai' as 'openai' | 'anthropic', base_url: '', model_name: '', api_key: '', price_input_per_mtok: null as number | null, price_output_per_mtok: null as number | null, max_parallel_runs: null as number | null })
 const form = reactive(blank())
 
 async function load() {
@@ -25,7 +25,7 @@ onMounted(load)
 function openCreate() { editing.value = null; Object.assign(form, blank()); drawer.value = true }
 function openEdit(m: ModelEndpoint) {
   editing.value = m
-  Object.assign(form, { name: m.name, protocol: m.protocol, base_url: m.base_url, model_name: m.model_name, api_key: '', price_input_per_mtok: m.price_input_per_mtok, price_output_per_mtok: m.price_output_per_mtok })
+  Object.assign(form, { name: m.name, protocol: m.protocol, base_url: m.base_url, model_name: m.model_name, api_key: '', price_input_per_mtok: m.price_input_per_mtok, price_output_per_mtok: m.price_output_per_mtok, max_parallel_runs: m.max_parallel_runs })
   drawer.value = true
 }
 async function save() {
@@ -109,6 +109,9 @@ const price = (m: ModelEndpoint) => (m.price_input_per_mtok == null ? '未填写
         <a-form-item label="API Key" name="api_key" :extra="editing ? '不修改就留空。' : '加密保存，之后只显示后四位。'"><a-input-password v-model:value="form.api_key" autocomplete="off" /></a-form-item>
         <a-form-item label="单价（可选）" extra="每百万 token，只用来做费用预估。">
           <div class="row"><a-input-number v-model:value="form.price_input_per_mtok" :min="0" placeholder="输入" style="flex: 1" /><a-input-number v-model:value="form.price_output_per_mtok" :min="0" placeholder="输出" style="flex: 1" /></div>
+        </a-form-item>
+        <a-form-item label="同时评测的任务数" extra="这个模型最多同时跑几个评测任务，默认 1。每个任务自己还会并发发送请求（发起评测时的“并发”），调大前先确认服务商的限流。">
+          <a-input-number v-model:value="form.max_parallel_runs" :min="1" :max="20" placeholder="1" style="width: 120px" />
         </a-form-item>
       </a-form>
       <template #footer>
