@@ -1,4 +1,10 @@
 :root {
+  /* Heng motion (design-system/README.md) */
+  --hg-ease: cubic-bezier(.2, .8, .2, 1);
+  --hg-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --hg-fast: 160ms;
+  --hg-med: 320ms;
+  --hg-slow: 700ms;
   /* soft tints of the status colours, for backgrounds behind tinted text */
   --teal-soft: color-mix(in srgb, var(--teal) 12%, transparent);
   --amber-soft: color-mix(in srgb, var(--amber) 12%, transparent);
@@ -58,3 +64,22 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 .ant-alert.ant-alert-info { background: var(--surface-2); border-color: var(--line); }
 .ant-alert.ant-alert-info .anticon { color: var(--ink-muted); }
 .ant-alert { border-radius: var(--radius-md); }
+
+/* entrance: the blocks of a page rise 14px and fade in, staggered 80ms; fill-mode backwards leaves no transform behind afterwards */
+@keyframes hg-enter { from { opacity: 0; transform: translateY(14px); } }
+.page > * { animation: hg-enter var(--hg-slow) var(--hg-ease) backwards; animation-delay: calc(var(--d, 0) * 80ms); }
+.page > :nth-child(1) { --d: 0; }
+.page > :nth-child(2) { --d: 1; }
+.page > :nth-child(3) { --d: 2; }
+.page > :nth-child(4) { --d: 3; }
+.page > :nth-child(5) { --d: 4; }
+.page > :nth-child(n+6) { --d: 5; }
+
+/* buttons: press shrinks a little, the primary one glows on hover */
+.ant-btn:not(.ant-btn-link):not(.ant-btn-text):not(:disabled):active { transform: scale(.97); transition-duration: var(--hg-fast); }
+.ant-btn.ant-btn-primary:not(:disabled):hover { box-shadow: var(--shadow-glow); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page > * { animation: none; }
+  .ant-btn:not(:disabled):active { transform: none; }
+}
