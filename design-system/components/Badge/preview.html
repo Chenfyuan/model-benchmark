@@ -1,0 +1,13 @@
+<!-- @dsCard group="Status" height=80 subtitle="运行中 · 排队 · 完成 · 失败" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Badge — preview</title>
+<style>body{margin:0;padding:20px;background:var(--bg);font-family:var(--font-sans);color:var(--ink)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Heng, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'row'},h(H.Badge,{tone:'signal',pulse:true},'运行中'),h(H.Badge,{tone:'amber'},'排队中'),h(H.Badge,{tone:'teal'},'已完成'),h(H.Badge,{tone:'danger'},'失败'),h(H.Badge,{tone:'neutral'},'草稿'),h(H.Badge,{tone:'coral',dot:false},'胜出')));
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<!-- @dsCard group="Evaluation" height=420 subtitle="实时进度 · 流式日志" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>RunProgress — preview</title>
+<style>body{margin:0;padding:20px;background:var(--bg);font-family:var(--font-sans);color:var(--ink)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Heng, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'hg-card',style:{maxWidth:'560px'}},h(H.RunProgress,{jobs:H.demo.jobs,simulate:true})));
+</script>
+</body>
+</html>

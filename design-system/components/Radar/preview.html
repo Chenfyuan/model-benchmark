@@ -1,0 +1,13 @@
+<!-- @dsCard group="Evaluation" height=420 subtitle="悬停高亮 · 点击图例收起" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Radar — preview</title>
+<style>body{margin:0;padding:20px;background:var(--bg);font-family:var(--font-sans);color:var(--ink)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Heng, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(H.Radar,{axes:['推理','代码','中文','安全','长文本','工具调用'],series:[{name:'Orion-Ultra',values:[89,84,82,90,86,88]},{name:'Qilin-Max',values:[84,80,91,86,78,74]},{name:'Kestrel-70B',values:[85,89,75,82,70,81]}]}));
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<!-- @dsCard group="Data" height=100 subtitle="数字滚动" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>CountUp — preview</title>
+<style>body{margin:0;padding:20px;background:var(--bg);font-family:var(--font-sans);color:var(--ink)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Heng, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'row',style:{font:'600 40px/1 var(--font-display)',color:'var(--ink)',gap:'40px'}},h(H.CountUp,{value:1284560}),h(H.CountUp,{value:78.6,decimals:1}),h(H.CountUp,{value:3482,prefix:'¥'})));
+</script>
+</body>
+</html>

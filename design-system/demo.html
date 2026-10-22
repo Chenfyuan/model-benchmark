@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- 浏览器直接打开即可看完整首页（需联网加载 React 与字体）。仅作视觉参考。 -->
+<html data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Heng 衡 — Dashboard demo</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="bundle.css">
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="bundle.js"></script>
+</head>
+<body style="margin:0;background:var(--bg)">
+  <div id="root" style="min-height:100vh"></div>
+  <script>ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Heng.Dashboard));</script>
+</body>
+</html>

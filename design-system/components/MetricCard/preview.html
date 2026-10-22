@@ -1,0 +1,13 @@
+<!-- @dsCard group="Data" height=190 subtitle="指标卡 · 依次入场" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>MetricCard — preview</title>
+<style>body{margin:0;padding:20px;background:var(--bg);font-family:var(--font-sans);color:var(--ink)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Heng, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px'}},h(H.MetricCard,{index:0,label:'已评测样本',value:1284560,delta:12.4,deltaDecimals:1,deltaSuffix:'%',data:[32,41,38,52,49,61,58,72,70,86]}),h(H.MetricCard,{index:1,label:'平均得分',value:78.6,decimals:1,delta:1.8,deltaDecimals:1,tone:'teal',data:[71,72,74,73,75,76,76,77,78,78.6]}),h(H.MetricCard,{index:2,label:'本周推理成本',value:3482,prefix:'¥',delta:-6.2,deltaDecimals:1,deltaSuffix:'%',tone:'coral',data:[60,58,63,55,52,54,49,47,45,44]})));
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<!-- @dsCard group="Data" height=170 subtitle="环形得分" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ScoreRing — preview</title>
+<style>body{margin:0;padding:20px;background:var(--bg);font-family:var(--font-sans);color:var(--ink)}.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Heng, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'row',style:{gap:'32px'}},h(H.ScoreRing,{value:86.4,label:'综合'}),h(H.ScoreRing,{value:91.2,label:'中文',tone:'teal',delay:150}),h(H.ScoreRing,{value:64,label:'胜率',tone:'coral',delay:300}),h(H.ScoreRing,{value:72.4,label:'配额',tone:'amber',size:72,stroke:7,delay:450})));
+</script>
+</body>
+</html>
