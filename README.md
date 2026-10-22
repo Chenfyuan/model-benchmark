@@ -239,17 +239,21 @@ docker compose up -d --build     # 打开 http://localhost:8000
 backend/
   app/
     main.py            应用入口，注册路由、托管前端
-    models.py          数据库表：模型、评测集、任务、指标、逐条样本
-    routers/           models / datasets / runs 三组接口
-    services/          连通测试、评测集校验、内置基准目录
+    config.py          环境变量配置
+    models.py          数据库表：模型、评测集、任务、指标、逐条样本、评分方案、Worker
+    routers/           models / datasets / runs / compare / schemes / settings / workers
+    services/          连通测试、评测集校验与 TSV 导入、内置基准目录、费用限额、
+                       宽松匹配与人工复核、工具调用参数检查、综合得分、HTML 报告
     engines/           引擎适配器（接口、EvalScope 适配器、输出解析、子进程入口）
-    worker.py          后台 Worker
+    worker.py          后台 Worker（多槽位、心跳、自动重试、看门狗）
   tests/               pytest；引擎用记录下来的真实 EvalScope 输出代替
 frontend/
-  src/views/           模型管理、评测集、发起评测、任务列表、结果页
+  src/views/           模型管理、评测集、发起评测、任务列表、结果页、模型对比、评分方案、费用限额
   src/components/      页头、状态徽标、指标卡片、连通测试结果、图表等共用组件
   src/theme.ts         Ant Design 主题（主色、圆角、深色算法）；全局样式在 src/style.css
+e2e/                   Playwright 浏览器测试
 docs/images/           README 里的截图
+CLAUDE.md              开发者上手说明（项目决定、设计、约定、踩过的坑）
 ```
 
 ## 开发与测试
