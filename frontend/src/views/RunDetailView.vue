@@ -110,6 +110,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         <a-button v-if="isActive(run)" danger @click="cancel"><template #icon><StopOutlined /></template>取消</a-button>
         <a-button v-if="run.status === 'failed' || run.status === 'cancelled'" type="primary" @click="retry"><template #icon><RedoOutlined /></template>重试</a-button>
         <a-button v-if="!isActive(run)" @click="rerun"><template #icon><ReloadOutlined /></template>用相同配置重跑</a-button>
+        <a-button v-if="run.status === 'completed'" tag="a" :href="`/api/v1/runs/${id}/report?download=true`"><template #icon><FileTextOutlined /></template>导出报告</a-button>
         <a-button v-if="run.status === 'completed'" tag="a" :href="`/api/v1/runs/${id}/export`"><template #icon><DownloadOutlined /></template>导出 CSV</a-button>
       </div>
     </div>

@@ -24,6 +24,7 @@
   - **引擎得分永远保留**：页面同时给出“引擎得分”和“复核后得分”，样本上标明判定来源（宽松匹配 / 人工改判 / 人工确认），可筛选“有改判”；任务列表和模型对比也显示复核后得分，逐题对比按复核后的结果判断分歧。
   - 复核后得分只在引擎主指标是“逐题得分的平均”（Accuracy 这类）时才给；F1、BLEU 这类无法如实重算的，不给，也不会猜。
   - 重试后保留人工复核（回答没变的题）。
+- **导出报告**：任务详情和模型对比页都有“导出报告”，生成一个单文件 HTML（没有外部依赖，图片已内嵌，可以直接发给别人、打印成 PDF）。单任务报告包含引擎得分和复核后得分、分子集得分、成本与性能、答错的题（带图、标准答案、模型回答、裁判意见和复核备注，最多 40 题）；对比报告包含逐项对比（每行最优高亮）和模型之间有分歧的题（最多 30 题）。报告里不含模型的地址和 key。
 - **浅色 / 深色主题**：右上角一键切换，记住你的选择。
 - **结果**：主指标和各子集得分、成本与性能（平均延迟、P90、平均输入 / 输出 token、吞吐）、逐条样本（可按答对 / 答错 / 出错、子集、关键词筛选，可放大图片）、导出 CSV、引擎日志。
 
@@ -46,6 +47,10 @@
 | 重试：跳过已答完的样本 | 勾选任务进行对比 |
 | --- | --- |
 | ![重试](docs/images/run-retried.png) | ![勾选对比](docs/images/runs-select.png) |
+
+| 导出的单任务报告 | 导出的对比报告 |
+| --- | --- |
+| ![单任务报告](docs/images/report.png) | ![对比报告](docs/images/report-compare.png) |
 
 | 样本：宽松匹配通过的带标记，每题可人工判对 / 判错 | 任务列表显示复核后得分 |
 | --- | --- |
@@ -205,6 +210,7 @@ docker compose up -d --build     # 打开 http://localhost:8000
 | `GET /api/v1/compare?run_ids=1,2,3`、`GET /compare/samples` | 多任务对比：指标与可比性提醒；逐题对齐（`view=diff|all_wrong|all`） |
 | `GET/PUT /api/v1/settings/budget` | 费用限额与本月已用；`POST /runs` 预估超限返回 409 `budget_exceeded`，带 `confirm_over_budget: true` 再提交 |
 | `PUT /runs/{id}/samples/{sample_id}/review`、`POST /runs/{id}/rescore`、`GET /runs/{id}/adjusted` | 人工改判（`correct: null` 取消）；宽松匹配重新评分；复核后得分（含各子集） |
+| `GET /api/v1/runs/{id}/report`、`GET /api/v1/compare/report?run_ids=` | 单文件 HTML 报告（加 `download=true` 触发下载） |
 | `GET /runs/{id}/metrics`、`/samples`、`/export`、`/log` | 指标、逐条样本（可筛选）、CSV、引擎日志 |
 
 错误统一返回 `{"code": "...", "message": "..."}`（校验类错误另带 `details`）。

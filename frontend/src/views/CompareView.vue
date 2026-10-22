@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SwapOutlined } from '@ant-design/icons-vue'
+import { FileTextOutlined, SwapOutlined } from '@ant-design/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl, type CompareCell, type CompareResult, type CompareRow, type Metric, type Run } from '../api'
@@ -162,7 +162,9 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 
 <template>
   <div class="page">
-    <PageHeader title="模型对比" sub="把同一批题上的多个模型放在一起看：得分、速度、费用，以及它们到底在哪些题上不一样。" />
+    <PageHeader title="模型对比" sub="把同一批题上的多个模型放在一起看：得分、速度、费用，以及它们到底在哪些题上不一样。">
+      <a-button v-if="ids.length >= 2 && data && data.runs.every((r) => r.status === 'completed')" tag="a" :href="`/api/v1/compare/report?run_ids=${ids.join(',')}&download=true`"><template #icon><FileTextOutlined /></template>导出报告</a-button>
+    </PageHeader>
 
     <div class="card card-pad" style="margin-bottom: 16px">
       <div class="label">选择要对比的评测任务（2–8 个，建议同一个评测集、同样的设置）</div>

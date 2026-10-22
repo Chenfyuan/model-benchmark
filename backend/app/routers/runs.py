@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Query
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from ..db import get_db
 from ..errors import ApiError
 from ..models import Dataset, ModelEndpoint, Run, RunMetric, SampleResult, utcnow
 from ..schemas import EstimateIn, MetricOut, Page, ReviewIn, RunCreate, RunOut, SampleOut
+from ..services.report import run_report
 from ..services.rescoring import adjusted_scores, final_verdict, rescore_run, reviewed_counts
 from ..services.budget import get_budget, month_usage
 from ..worker import run_dir
@@ -373,6 +374,16 @@ def export(run_id: int, db: Session = Depends(get_db)):
 
     return StreamingResponse(rows(), media_type="text/csv; charset=utf-8",
                              headers={"Content-Disposition": f'attachment; filename="run_{run_id}_samples.csv"'})
+
+
+@router.get("/{run_id}/report", response_class=HTMLResponse)
+def report(run_id: int, download: bool = False, db: Session = Depends(get_db)):
+    """One self-contained HTML file with the scores, cost, and the wrong answers (images embedded)."""
+    r = get_or_404(db, run_id)
+    if r.status != "completed":
+        raise ApiError("not_completed", "任务完成后才能导出报告", 409)
+    headers = {"Content-Disposition": f'attachment; filename="run_{run_id}_report.html"'} if download else {}
+    return HTMLResponse(run_report(db, r), headers=headers)
 
 
 @router.delete("/{run_id}", status_code=204)

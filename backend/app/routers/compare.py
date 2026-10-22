@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,7 @@ from ..db import get_db
 from ..errors import ApiError
 from ..models import Run, RunMetric, SampleResult
 from ..schemas import MetricOut, Page, RunOut
+from ..services.report import compare_report
 from sqlalchemy import func
 
 from .runs import _adjusted, _headlines, run_out
@@ -83,6 +85,16 @@ def compare(run_ids: str = Query(...), db: Session = Depends(get_db)):
         "metrics": metrics,
         "warnings": comparability_warnings(runs),
     }
+
+
+@router.get("/report", response_class=HTMLResponse)
+def compare_report_html(run_ids: str = Query(...), download: bool = False, db: Session = Depends(get_db)):
+    runs = _load(db, _ids(run_ids))
+    unfinished = [r.id for r in runs if r.status != "completed"]
+    if unfinished:
+        raise ApiError("not_completed", f"任务 {unfinished[0]} 还没有完成，完成后才能导出对比报告", 409)
+    headers = {"Content-Disposition": 'attachment; filename="compare_report.html"'} if download else {}
+    return HTMLResponse(compare_report(db, runs, comparability_warnings(runs)), headers=headers)
 
 
 @router.get("/samples", response_model=Page)
