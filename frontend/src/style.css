@@ -12,7 +12,8 @@
 }
 
 html, body, #app { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+/* canvas: Heng's dot grid at --space-5 steps */
+body { background-color: var(--bg); background-image: radial-gradient(var(--line) 1px, transparent 1.2px); background-size: var(--space-5) var(--space-5); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 /* display face for page titles and every number; tabular so values do not jitter */
 .num, h1 { font-family: var(--font-display); }
 .num { font-variant-numeric: tabular-nums; }

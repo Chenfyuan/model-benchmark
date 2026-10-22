@@ -5,6 +5,7 @@ import { h } from 'vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, type Dataset, type Estimate, type ModelEndpoint } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { CAPABILITY_HINT, CAPABILITY_LABEL, KIND_LABEL } from '../format'
 
@@ -103,9 +104,9 @@ const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning
         <div class="card card-pad block">
           <h3 class="section-title"><span class="step">1</span>被测模型</h3>
           <p class="section-sub">可以多选，一次对比多个模型。</p>
-          <a-empty v-if="loaded && !models.length" description="还没有接入任何模型">
+          <EmptyState v-if="loaded && !models.length" compact title="还没有接入任何模型" hint="先登记要评测的模型，再回到这里选择。">
             <a-button type="primary" @click="router.push('/models')">去接入模型</a-button>
-          </a-empty>
+          </EmptyState>
           <div v-else class="grid grid-3">
             <div v-for="m in models" :key="m.id" class="pick" :class="{ on: modelIds.includes(m.id) }" @click="toggleModel(m.id)">
               <span class="check"><CheckOutlined v-if="modelIds.includes(m.id)" /></span>

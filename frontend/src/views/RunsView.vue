@@ -4,6 +4,7 @@ import { message } from 'ant-design-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, type Run, type WorkerStatus } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import PageHeader from '../components/PageHeader.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import { STOP_REASON_LABEL, fmtAgo, fmtCost, fmtDuration, fmtTokens, isActive } from '../format'
@@ -143,9 +144,9 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
           </template>
         </template>
         <template #emptyText>
-          <a-empty description="还没有评测任务">
+          <EmptyState title="还没有评测任务" hint="选好模型和评测集，先试跑几题，确认没问题再跑全量。">
             <a-button type="primary" @click="$router.push('/runs/new')">发起第一次评测</a-button>
-          </a-empty>
+          </EmptyState>
         </template>
       </a-table>
     </div>

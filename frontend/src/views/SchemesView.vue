@@ -3,6 +3,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons-vu
 import { message } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api, type Scheme } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 type Row = { dataset_name: string | undefined; weight: number | null }
@@ -61,9 +62,9 @@ async function remove(s: Scheme) { await api.deleteScheme(s.id); message.success
       description="综合得分 = 各评测集得分 × 权重占比，再相加。权重只看相对大小（2 和 1 等于 67% 和 33%）。得分用各评测集的主指标，有复核时用复核后的得分。模型缺少方案里任何一个评测集的结果，就不给综合得分。" />
 
     <a-spin :spinning="loading">
-      <a-empty v-if="!loading && !schemes.length" class="card card-pad" style="padding: 56px 0" description="还没有评分方案">
+      <EmptyState v-if="!loading && !schemes.length" card title="还没有评分方案" hint="按你看重的程度，给各个评测集设置权重，合成一个综合得分。">
         <a-button type="primary" @click="open()">新建第一个方案</a-button>
-      </a-empty>
+      </EmptyState>
       <div v-for="s in schemes" :key="s.id" class="card card-pad scheme" style="margin-bottom: 14px">
         <div class="row-between">
           <h3 class="section-title" style="margin: 0">{{ s.name }}</h3>

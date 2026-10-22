@@ -3,6 +3,7 @@ import { FileTextOutlined, SwapOutlined } from '@ant-design/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, mediaUrl, type CompareCell, type CompareResult, type CompareRow, type Composite, type Metric, type Run, type Scheme } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import CompareChart from '../components/CompareChart.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { STATUS_BADGE, STATUS_LABEL, fmtCost, fmtMetric, fmtTokens, isActive } from '../format'
@@ -200,10 +201,9 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
       <a-select v-model:value="picker" mode="multiple" :options="pickerOptions" placeholder="选择已完成的评测任务" style="width: 100%" :max-tag-count="8" show-search option-filter-prop="label" />
     </div>
 
-    <a-empty v-if="ids.length < 2 && !error" class="card card-pad" style="padding: 56px 0">
-      <template #description><div>选两个以上的任务开始对比</div><div class="faint" style="font-size: 13px; margin-top: 4px">也可以在“评测任务”里勾选几行，点“对比所选”。</div></template>
+    <EmptyState v-if="ids.length < 2 && !error" card title="选两个以上的任务开始对比" hint="也可以在“评测任务”里勾选几行，点“对比所选”。">
       <a-button type="primary" @click="router.push('/runs/new')">发起一次多模型评测</a-button>
-    </a-empty>
+    </EmptyState>
     <a-alert v-if="error" type="error" show-icon :message="error" style="margin-bottom: 16px" />
 
     <template v-if="data">
@@ -302,7 +302,7 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
           </div>
         </div>
         <a-alert v-if="!canCompareSamples" type="info" show-icon style="margin-top: 12px" message="这个评测集上至少要有两个已完成的任务，才能逐题对比。" />
-        <a-empty v-else-if="!rows.length" style="padding: 36px 0" :description="view === 'diff' ? '没有分歧：所有模型在每道题上的对错都一样' : '没有符合条件的题'" />
+        <EmptyState v-else-if="!rows.length" compact :title="view === 'diff' ? '没有分歧' : '没有符合条件的题'" :hint="view === 'diff' ? '所有模型在每道题上的对错都一样' : undefined" />
 
         <div v-for="row in rows" :key="`${row.subset}-${row.idx}`" class="qrow">
           <div class="qhead">

@@ -3,6 +3,7 @@ import { CheckCircleFilled, CloseCircleFilled, DeleteOutlined, EditOutlined, Exc
 import { message } from 'ant-design-vue'
 import { onMounted, reactive, ref } from 'vue'
 import { api, type CheckResult as CheckResultT, type ModelEndpoint } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import CheckResult from '../components/CheckResult.vue'
 import PageHeader from '../components/PageHeader.vue'
 
@@ -63,9 +64,9 @@ const price = (m: ModelEndpoint) => (m.price_input_per_mtok == null ? '未填写
     </PageHeader>
 
     <a-spin :spinning="loading">
-      <a-empty v-if="!loading && !models.length" class="card card-pad" style="padding: 56px 0" description="还没有接入任何模型">
+      <EmptyState v-if="!loading && !models.length" card title="还没有接入任何模型" hint="登记一个模型的 HTTP 接口，就可以拿它跑评测。">
         <a-button type="primary" @click="openCreate">接入第一个模型</a-button>
-      </a-empty>
+      </EmptyState>
       <div v-else class="grid grid-3">
         <div v-for="m in models" :key="m.id" class="card card-pad model">
           <div class="row-between">

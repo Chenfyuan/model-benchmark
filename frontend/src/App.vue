@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {
-  ApiOutlined, BarChartOutlined, BulbFilled, ControlOutlined, BulbOutlined, DatabaseOutlined, ExperimentOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UnorderedListOutlined,
+  ApiOutlined, BarChartOutlined, BulbFilled, ControlOutlined, BulbOutlined, DatabaseOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BrandMark from './components/ds/BrandMark.vue'
 import { crumbTail } from './breadcrumb'
 import { antdTheme, isDark, toggleTheme } from './theme'
 
@@ -27,7 +28,7 @@ const crumbs = computed<{ label: string; to?: string }[]>(() => {
     <a-layout style="min-height: 100vh">
       <a-layout-sider v-model:collapsed="collapsed" :width="232" :collapsed-width="72" collapsible theme="light" class="sider">
         <div class="logo" @click="router.push('/')">
-          <div class="logo-mark"><ExperimentOutlined /></div>
+          <BrandMark :size="36" />
           <div v-if="!collapsed" class="logo-text"><b>评测平台</b><span>多模态模型</span></div>
         </div>
         <a-menu theme="light" mode="inline" :selected-keys="selected" @click="go">
@@ -72,7 +73,6 @@ const crumbs = computed<{ label: string; to?: string }[]>(() => {
 .sider :deep(.ant-menu-item-selected) { background: var(--signal-soft); box-shadow: inset 2px 0 0 var(--signal); }
 .sider :deep(.ant-layout-sider-trigger) { background: var(--surface-2) !important; color: var(--ink-muted); border-top: 1px solid var(--line); }
 .logo { display: flex; align-items: center; gap: 12px; padding: 20px 22px 18px; cursor: pointer; }
-.logo-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--signal); display: flex; align-items: center; justify-content: center; color: var(--on-signal); font-size: 18px; flex: none; }
 .logo-text { display: flex; flex-direction: column; line-height: 1.25; color: var(--ink); }
 .logo-text b { font-size: 16px; }
 .logo-text span { font-size: 12px; color: var(--ink-muted); }

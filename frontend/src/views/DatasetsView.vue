@@ -3,6 +3,7 @@ import { CheckCircleFilled, DeleteOutlined, EyeOutlined, InboxOutlined, UploadOu
 import { message } from 'ant-design-vue'
 import { computed, onMounted, ref } from 'vue'
 import { api, type Dataset } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import CopyCode from '../components/CopyCode.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { CAPABILITY_HINT, CAPABILITY_LABEL, KIND_LABEL, fmtAgo } from '../format'
@@ -121,7 +122,7 @@ const columns = [
             </template>
           </template>
           <template #emptyText>
-            <a-empty description="还没有上传过自有评测集"><a-button type="primary" @click="openUpload">上传评测集</a-button></a-empty>
+            <EmptyState compact title="还没有上传过自有评测集" hint="用你自己的题目评测，支持 jsonl 和带图的 zip。"><a-button type="primary" @click="openUpload">上传评测集</a-button></EmptyState>
           </template>
         </a-table>
       </div>

@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { crumbTail } from '../breadcrumb'
 import { api, mediaUrl, type Metric, type Run, type Sample } from '../api'
+import EmptyState from '../components/ds/EmptyState.vue'
 import MetricCard from '../components/MetricCard.vue'
 import RunProgress from '../components/ds/RunProgress.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -198,7 +199,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
           <a-select v-if="subsets.length > 1" v-model:value="filter.subset" allow-clear placeholder="全部子集" style="width: 160px" :options="subsets.map((s) => ({ value: s, label: s }))" />
           <a-input v-model:value="filter.q" allow-clear placeholder="搜索问题 / 答案 / 回答" style="width: 260px" />
         </div>
-        <a-empty v-if="!samples.length" description="没有符合条件的样本" class="card card-pad" style="padding: 48px 0" />
+        <EmptyState v-if="!samples.length" card title="没有符合条件的样本" hint="换一个筛选条件试试。" />
 
         <div v-for="s in samples" :key="s.id" class="card verdict" :class="verdict(s)[0]" style="margin-bottom: 14px; overflow: hidden">
           <div class="row-between" style="padding: 12px 20px; border-bottom: 1px solid var(--line)">
