@@ -71,7 +71,6 @@ const crumbs = computed<{ label: string; to?: string }[]>(() => {
 .sider :deep(.ant-menu) { background: transparent; border-inline-end: 0; }
 .sider :deep(.ant-menu-item-selected) { background: var(--signal-soft); box-shadow: inset 2px 0 0 var(--signal); }
 .sider :deep(.ant-layout-sider-trigger) { background: var(--surface-2) !important; color: var(--ink-muted); border-top: 1px solid var(--line); }
-:deep(.ant-layout-header) { background: transparent !important; }
 .logo { display: flex; align-items: center; gap: 12px; padding: 20px 22px 18px; cursor: pointer; }
 .logo-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--signal); display: flex; align-items: center; justify-content: center; color: var(--on-signal); font-size: 18px; flex: none; }
 .logo-text { display: flex; flex-direction: column; line-height: 1.25; color: var(--ink); }
@@ -83,7 +82,8 @@ const crumbs = computed<{ label: string; to?: string }[]>(() => {
 .crumb.link { cursor: pointer; color: var(--ink-muted); transition: color var(--hg-fast) var(--hg-ease); }
 .crumb.link:hover { color: var(--ink); }
 .sep { color: var(--line-strong); }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 56px; line-height: 56px; }
+/* a real bar: surface fill, 1px line underneath, stays on top while the page scrolls; its content lines up with the page column (max 1280px, 32px gutters) */
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 0 max(32px, calc((100% - 1280px) / 2 + 32px)); height: 56px; line-height: 56px; background: var(--surface) !important; border-bottom: 1px solid var(--line); }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.12s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
