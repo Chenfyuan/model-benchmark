@@ -1,45 +1,34 @@
+/* Legacy names kept as aliases of the Heng tokens (src/styles/tokens.css) until every page is migrated; new code uses the tokens directly. */
 :root {
-  --c-bg: #f4f5fa;
-  --c-card: #ffffff;
-  --c-border: #e8eaf2;
-  --c-text: #1b1f2e;
-  --c-text-2: #6b7285;
-  --c-text-3: #9aa1b5;
-  --c-primary: #5b5bd6;
-  --c-primary-soft: rgba(91, 91, 214, 0.1);
-  --c-good: #12a594;
-  --c-good-soft: rgba(18, 165, 148, 0.1);
-  --c-bad: #e5484d;
-  --c-bad-soft: rgba(229, 72, 77, 0.08);
-  --c-warn: #f5a524;
-  --c-code: #f6f7fb;
-  --shadow: 0 1px 2px rgba(20, 24, 40, 0.04), 0 4px 16px rgba(20, 24, 40, 0.04);
-}
-:root[data-theme='dark'] {
-  --c-bg: #0d0f14;
-  --c-card: #161922;
-  --c-border: #262a36;
-  --c-text: #e8eaf2;
-  --c-text-2: #9aa1b5;
-  --c-text-3: #6b7285;
-  --c-primary: #8b8bf0;
-  --c-primary-soft: rgba(139, 139, 240, 0.14);
-  --c-good: #3dd6c1;
-  --c-good-soft: rgba(61, 214, 193, 0.12);
-  --c-bad: #ff6369;
-  --c-bad-soft: rgba(255, 99, 105, 0.1);
-  --c-code: #1c202b;
-  --shadow: none;
+  --c-bg: var(--bg);
+  --c-card: var(--surface);
+  --c-border: var(--line);
+  --c-text: var(--ink);
+  --c-text-2: var(--ink-muted);
+  --c-text-3: var(--ink-muted);
+  --c-muted: var(--ink-muted);
+  --c-primary: var(--signal);
+  --c-primary-soft: var(--signal-soft);
+  --c-good: var(--teal);
+  --c-good-soft: color-mix(in srgb, var(--teal) 12%, transparent);
+  --c-bad: var(--danger);
+  --c-bad-soft: color-mix(in srgb, var(--danger) 10%, transparent);
+  --c-warn: var(--amber);
+  --c-code: var(--surface-2);
+  --shadow: var(--shadow-card);
 }
 
 html, body, #app { height: 100%; margin: 0; }
-body { background: var(--c-bg); color: var(--c-text); -webkit-font-smoothing: antialiased; }
+body { background: var(--c-bg); color: var(--c-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+/* display face for page titles and every number; tabular so values do not jitter */
+.num, h1 { font-family: var(--font-display); }
+.num { font-variant-numeric: tabular-nums; }
 * { box-sizing: border-box; }
 
 .page { max-width: 1280px; margin: 0 auto; padding: 8px 32px 48px; }
 .muted { color: var(--c-text-2); }
 .faint { color: var(--c-text-3); }
-.mono { font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace; font-size: 12.5px; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
 .card { background: var(--c-card); border: 1px solid var(--c-border); border-radius: 14px; box-shadow: var(--shadow); }
 .card-pad { padding: 20px; }
 .section-title { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
@@ -50,8 +39,11 @@ body { background: var(--c-bg); color: var(--c-text); -webkit-font-smoothing: an
 .row { display: flex; align-items: center; gap: 8px; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pre { white-space: pre-wrap; word-break: break-word; }
-.code { background: var(--c-code); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.code { background: var(--c-code); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; margin: 0; }
 .clickable { cursor: pointer; }
+/* category tags (not status): provider, custom dataset. Status tags use Ant's success / warning / error / processing. */
+.tag-teal { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 45%, transparent); background: color-mix(in srgb, var(--teal) 10%, transparent); }
+.tag-coral { color: var(--coral); border-color: color-mix(in srgb, var(--coral) 45%, transparent); background: color-mix(in srgb, var(--coral) 10%, transparent); }
 
 /* selectable cards (models / datasets on the "new run" page) */
 .pick { border: 1.5px solid var(--c-border); border-radius: 12px; padding: 14px 16px; background: var(--c-card); cursor: pointer; transition: all .15s; position: relative; }

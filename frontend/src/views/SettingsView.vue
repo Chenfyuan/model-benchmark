@@ -73,5 +73,5 @@ const status = (used: number, limit: number | null) => (limit && used > limit ? 
 </template>
 
 <style scoped>
-.n { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.n { font-family: var(--font-display); font-size: 28px; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
 </style>

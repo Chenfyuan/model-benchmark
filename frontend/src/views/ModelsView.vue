@@ -70,7 +70,7 @@ const price = (m: ModelEndpoint) => (m.price_input_per_mtok == null ? '未填写
         <div v-for="m in models" :key="m.id" class="card card-pad model">
           <div class="row-between">
             <div style="font-weight: 650; font-size: 16px">{{ m.name }}</div>
-            <a-tag :color="m.protocol === 'openai' ? 'green' : 'orange'" style="margin: 0">{{ m.protocol === 'openai' ? 'OpenAI' : 'Anthropic' }}</a-tag>
+            <a-tag :class="m.protocol === 'openai' ? 'tag-teal' : 'tag-coral'" style="margin: 0">{{ m.protocol === 'openai' ? 'OpenAI' : 'Anthropic' }}</a-tag>
           </div>
           <div class="mono muted" style="margin: 6px 0 2px">{{ m.model_name }}</div>
           <div class="faint ellipsis" :title="m.base_url" style="font-size: 12.5px">{{ m.base_url }}</div>

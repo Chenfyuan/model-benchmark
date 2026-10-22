@@ -21,27 +21,40 @@ watchEffect(() => {
 
 export const toggleTheme = () => { mode.value = isDark.value ? 'light' : 'dark' }
 
-export const PRIMARY = '#5b5bd6'
+// Heng tokens as literals: the ConfigProvider cannot read CSS variables (keep in sync with styles/tokens.css)
+export const H = {
+  dark: { bg: '#0d0f0b', surface: '#15180f', surface2: '#1e2218', line: '#2a2f22', lineStrong: '#454c39', ink: '#eef1e6', muted: '#9da391', signal: '#c8f169', onSignal: '#11140b', teal: '#5fd6c6', amber: '#f4bb45', danger: '#ff6b6b' },
+  light: { bg: '#f5f4ee', surface: '#ffffff', surface2: '#eeede5', line: '#dedcd1', lineStrong: '#a9a797', ink: '#15170f', muted: '#5c604f', signal: '#4c7600', onSignal: '#ffffff', teal: '#0c6f67', amber: '#94590a', danger: '#c21d1d' },
+}
 
-export const antdTheme = computed<ThemeConfig>(() => ({
-  algorithm: isDark.value ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
-  token: {
-    colorPrimary: PRIMARY,
-    colorInfo: PRIMARY,
-    colorSuccess: '#12a594',
-    colorWarning: '#f5a524',
-    colorError: '#e5484d',
-    borderRadius: 10,
-    borderRadiusLG: 14,
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
-    colorBgLayout: isDark.value ? '#0d0f14' : '#f4f5fa',
-    colorBgContainer: isDark.value ? '#161922' : '#ffffff',
-    colorBorderSecondary: isDark.value ? '#262a36' : '#e8eaf2',
-    boxShadowTertiary: isDark.value ? 'none' : '0 1px 2px rgba(20,24,40,.04), 0 4px 16px rgba(20,24,40,.04)',
-  },
-  components: {
-    Menu: { darkItemBg: 'transparent', darkItemSelectedBg: 'rgba(91,91,214,.28)', darkItemColor: 'rgba(255,255,255,.66)', itemMarginInline: 12, itemBorderRadius: 10 },
-    Table: { headerBg: 'transparent', headerColor: isDark.value ? '#9aa1b5' : '#6b7285', rowHoverBg: isDark.value ? '#1c202b' : '#f7f8fd' },
-    Card: { paddingLG: 20 },
-  },
-}))
+export const antdTheme = computed<ThemeConfig>(() => {
+  const c = isDark.value ? H.dark : H.light
+  return {
+    algorithm: isDark.value ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
+    token: {
+      colorPrimary: c.signal,
+      colorInfo: c.signal,
+      colorSuccess: c.teal,
+      colorWarning: c.amber,
+      colorError: c.danger,
+      colorBgLayout: c.bg,
+      colorBgContainer: c.surface,
+      colorBgElevated: c.surface,
+      colorBorder: c.lineStrong,
+      colorBorderSecondary: c.line,
+      colorText: c.ink,
+      colorTextSecondary: c.muted,
+      colorTextLightSolid: c.onSignal, // text on a primary button: the dark-mode signal is bright, Ant's default white would vanish
+      borderRadius: 10,
+      borderRadiusLG: 16,
+      borderRadiusSM: 6,
+      fontFamily: "'IBM Plex Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+      motionEaseOut: 'cubic-bezier(.2,.8,.2,1)',
+      boxShadowTertiary: isDark.value ? 'none' : '0 1px 2px rgba(21,23,15,.06), 0 10px 28px rgba(21,23,15,.06)',
+    },
+    components: {
+      Table: { headerBg: 'transparent', headerColor: c.muted, rowHoverBg: c.surface2 },
+      Card: { paddingLG: 20 },
+    },
+  }
+})

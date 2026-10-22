@@ -17,12 +17,12 @@ const go = ({ key }: { key: string | number }) => router.push(String(key))
 <template>
   <a-config-provider :locale="zhCN" :theme="antdTheme">
     <a-layout style="min-height: 100vh">
-      <a-layout-sider v-model:collapsed="collapsed" :width="232" :collapsed-width="72" collapsible theme="dark" class="sider">
+      <a-layout-sider v-model:collapsed="collapsed" :width="232" :collapsed-width="72" collapsible theme="light" class="sider">
         <div class="logo" @click="router.push('/')">
           <div class="logo-mark"><ExperimentOutlined /></div>
           <div v-if="!collapsed" class="logo-text"><b>评测平台</b><span>多模态模型</span></div>
         </div>
-        <a-menu theme="dark" mode="inline" :selected-keys="selected" @click="go">
+        <a-menu theme="light" mode="inline" :selected-keys="selected" @click="go">
           <a-menu-item key="/runs/new"><template #icon><ThunderboltOutlined /></template>发起评测</a-menu-item>
           <a-menu-item key="/runs"><template #icon><UnorderedListOutlined /></template>评测任务</a-menu-item>
           <a-menu-item key="/compare"><template #icon><BarChartOutlined /></template>模型对比</a-menu-item>
@@ -53,15 +53,16 @@ const go = ({ key }: { key: string | number }) => router.push(String(key))
 </template>
 
 <style scoped>
-.sider { position: sticky; top: 0; height: 100vh; overflow: auto; background: #12141c !important; }
-.sider :deep(.ant-menu), .sider :deep(.ant-menu-dark) { background: transparent !important; }
-.sider :deep(.ant-layout-sider-trigger) { background: #0c0e14 !important; }
+.sider { position: sticky; top: 0; height: 100vh; overflow: auto; background: var(--surface) !important; border-right: 1px solid var(--line); }
+.sider :deep(.ant-menu) { background: transparent; border-inline-end: 0; }
+.sider :deep(.ant-menu-item-selected) { background: var(--signal-soft); box-shadow: inset 2px 0 0 var(--signal); }
+.sider :deep(.ant-layout-sider-trigger) { background: var(--surface-2) !important; color: var(--ink-muted); border-top: 1px solid var(--line); }
 :deep(.ant-layout-header) { background: transparent !important; }
 .logo { display: flex; align-items: center; gap: 12px; padding: 20px 22px 18px; cursor: pointer; }
-.logo-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #5b5bd6, #a78bfa); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; flex: none; }
-.logo-text { display: flex; flex-direction: column; line-height: 1.25; color: #fff; }
+.logo-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--signal); display: flex; align-items: center; justify-content: center; color: var(--on-signal); font-size: 18px; flex: none; }
+.logo-text { display: flex; flex-direction: column; line-height: 1.25; color: var(--ink); }
 .logo-text b { font-size: 16px; }
-.logo-text span { font-size: 12px; color: rgba(255, 255, 255, 0.5); }
+.logo-text span { font-size: 12px; color: var(--ink-muted); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 56px; line-height: 56px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.12s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

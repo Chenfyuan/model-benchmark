@@ -90,7 +90,7 @@ async function submit() {
   } finally { submitting.value = false }
 }
 const modelState = (m: ModelEndpoint) => (!m.last_check ? ['未测试', 'default'] : m.last_check.ok ? ['可用', 'success'] : ['有问题', 'error'])
-const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning'] : d.source === 'custom' ? [`自有 · ${d.num_samples} 条`, 'purple'] : d.verified ? ['已跑通', 'success'] : ['未验证', 'default'])
+const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning'] : d.source === 'custom' ? [`自有 · ${d.num_samples} 条`, 'custom'] : d.verified ? ['已跑通', 'success'] : ['未验证', 'default'])
 </script>
 
 <template>
@@ -111,7 +111,7 @@ const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning
               <span class="check"><CheckOutlined v-if="modelIds.includes(m.id)" /></span>
               <div style="font-weight: 600; padding-right: 28px">{{ m.name }}</div>
               <div class="muted mono" style="margin: 2px 0 8px">{{ m.model_name }}</div>
-              <a-tag :color="m.protocol === 'openai' ? 'green' : 'orange'">{{ m.protocol === 'openai' ? 'OpenAI' : 'Anthropic' }}</a-tag>
+              <a-tag :class="m.protocol === 'openai' ? 'tag-teal' : 'tag-coral'">{{ m.protocol === 'openai' ? 'OpenAI' : 'Anthropic' }}</a-tag>
               <a-badge :status="modelState(m)[1] as any" :text="modelState(m)[0]" />
             </div>
           </div>
@@ -133,7 +133,7 @@ const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning
                 <span class="check"><CheckOutlined v-if="datasetIds.includes(d.id)" /></span>
                 <div style="font-weight: 600; padding-right: 28px">{{ d.name }}<span v-if="d.source === 'custom'" class="faint"> v{{ d.version }}</span></div>
                 <div class="muted" style="font-size: 13px; margin: 2px 0 8px; min-height: 20px">{{ d.description || KIND_LABEL[d.kind] }}</div>
-                <a-tag :color="datasetTag(d)[1]">{{ datasetTag(d)[0] }}</a-tag>
+                <a-tag :color="datasetTag(d)[1] === 'custom' ? undefined : datasetTag(d)[1]" :class="{ 'tag-coral': datasetTag(d)[1] === 'custom' }">{{ datasetTag(d)[0] }}</a-tag>
                 <a-tag v-if="d.source === 'custom'">{{ KIND_LABEL[d.kind] }}</a-tag>
               </div>
             </div>

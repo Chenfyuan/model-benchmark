@@ -326,7 +326,7 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 <style scoped>
 .runchip { padding: 14px 16px; transition: transform 0.15s; }
 .runchip:hover { transform: translateY(-2px); }
-.big { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.big { font-family: var(--font-display); font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .sect { font-size: 12px; color: var(--c-text-3); text-transform: none; margin-bottom: 2px; }
 .cellv { font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 6px; }
 .win { background: var(--c-good-soft); color: var(--c-good); font-weight: 650; padding: 2px 8px; border-radius: 6px; }
@@ -351,7 +351,7 @@ const headline = (r: Run) => (done(r) && r.headline ? r.headline.display : STATU
 .mn { width: 170px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track { flex: 1; height: 12px; border-radius: 99px; background: var(--c-border); overflow: hidden; }
 .fill { height: 100%; border-radius: 99px; background: var(--c-primary); }
-.sc { width: 56px; text-align: right; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.sc { font-family: var(--font-display); width: 56px; text-align: right; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .why { font-size: 13px; cursor: pointer; flex: none; }
 @media (max-width: 900px) { .qbody { flex-direction: column; } }
 </style>

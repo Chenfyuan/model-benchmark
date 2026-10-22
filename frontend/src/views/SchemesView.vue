@@ -105,7 +105,7 @@ async function remove(s: Scheme) { await api.deleteScheme(s.id); message.success
 .nm { width: 180px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track { flex: 1; height: 10px; border-radius: 99px; background: var(--c-border); overflow: hidden; }
 .fill { height: 100%; border-radius: 99px; background: var(--c-primary); }
-.pc { width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+.pc { font-family: var(--font-display); width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
 .wrow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.share { width: 56px; text-align: right; color: var(--c-muted, #6b7280); font-variant-numeric: tabular-nums; }
+.share { font-family: var(--font-display); width: 56px; text-align: right; color: var(--c-muted, #6b7280); font-variant-numeric: tabular-nums; }
 </style>

@@ -111,7 +111,7 @@ const compare = () => router.push({ path: '/compare', query: { runs: selected.va
           </template>
           <template v-else-if="column.key === 'status'">
             <StatusBadge :run="record as Run" show-progress />
-            <a-tag v-if="record.stop_reason" color="orange" style="margin-top: 4px">{{ STOP_REASON_LABEL[record.stop_reason] }}</a-tag>
+            <a-tag v-if="record.stop_reason" color="warning" style="margin-top: 4px">{{ STOP_REASON_LABEL[record.stop_reason] }}</a-tag>
           </template>
           <template v-else-if="column.key === 'usage'">
             <template v-if="record.input_tokens != null">
