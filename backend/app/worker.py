@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import signal
 import socket
@@ -22,7 +23,7 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import aliased
 
 from .config import get_settings
@@ -37,6 +38,10 @@ from .services.budget import get_budget, month_usage, run_cost
 
 log = logging.getLogger("worker")
 LOG_TAIL_BYTES = 16000
+# Errors that come from the provider's side and usually go away: worth re-queuing instead of failing the run.
+TRANSIENT = re.compile(
+    r"Error code: (?:429|5\d\d)|RateLimitError|InternalServerError|APIConnectionError|APITimeoutError|ServiceUnavailable|"
+    r"Connection (?:reset|aborted|refused)|Read timed out|ReadTimeout|ConnectTimeout|overloaded", re.I)
 SHUTDOWN = threading.Event()  # set on SIGTERM / SIGINT: stop claiming, hand running runs back to the queue
 HEARTBEAT_SEC = 5
 
@@ -255,8 +260,10 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None, worker_id: st
                     error=f"超过 {settings.run_timeout_sec} 秒的运行时间上限，已终止")
             return "failed"
         if proc.returncode != 0:
-            _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(),
-                    error=error_summary(log_text, secrets) or f"引擎退出码 {proc.returncode}")
+            summary = error_summary(log_text, secrets) or f"引擎退出码 {proc.returncode}"
+            if TRANSIENT.search(log_text) and _auto_retry(run_id, summary):
+                return "retrying"
+            _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(), error=summary)
             return "failed"
 
         _update(run_id, stage="collecting", progress=1.0)
@@ -270,18 +277,37 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None, worker_id: st
         return "failed"
 
 
+def _auto_retry(run_id: int, summary: str) -> bool:
+    """Put a run that hit a provider error back in the queue with back-off; it continues from its finished samples."""
+    cfg = get_settings()
+    with SessionLocal() as db:
+        run = db.get(Run, run_id)
+        used = run.auto_retries or 0
+        if used >= cfg.auto_retry_max:
+            return False
+        delay = cfg.auto_retry_base_sec * 2 ** used
+        last = summary.strip().splitlines()[-1][:200] if summary.strip() else ""
+        run.status, run.stage, run.pid, run.worker_id, run.resume = "queued", "queued", None, None, True
+        run.attempts, run.auto_retries = (run.attempts or 1) + 1, used + 1
+        run.retry_after = utcnow() + timedelta(seconds=delay)
+        run.error = f"服务商返回了临时错误，{delay} 秒后自动重试（第 {used + 1}/{cfg.auto_retry_max} 次），已答完的样本不会重做。最后一条错误：{last}"
+        db.commit()
+    return True
+
+
 def claim_next(worker_id: str | None = None) -> int | None:
     """Atomically take the oldest queued run whose model has a free slot. Returns its id, or None."""
     running = aliased(Run)
     with SessionLocal() as db:
-        candidates = db.scalars(select(Run.id).where(Run.status == "queued").order_by(Run.id).limit(50)).all()
+        ready = or_(Run.retry_after.is_(None), Run.retry_after <= utcnow())  # runs backing off after a provider error wait
+        candidates = db.scalars(select(Run.id).where(Run.status == "queued", ready).order_by(Run.id).limit(50)).all()
         for run_id in candidates:
             in_use = select(func.count()).select_from(running).where(running.model_id == Run.model_id, running.status == "running").correlate(Run).scalar_subquery()
             allowed = func.coalesce(select(ModelEndpoint.max_parallel_runs).where(ModelEndpoint.id == Run.model_id).correlate(Run).scalar_subquery(), 1)
             res = db.execute(
-                update(Run).where(Run.id == run_id, Run.status == "queued", in_use < allowed).values(
+                update(Run).where(Run.id == run_id, Run.status == "queued", ready, in_use < allowed).values(
                     status="running", stage="preparing", progress=0.0, started_at=utcnow(), finished_at=None,
-                    error=None, cancel_requested=False, worker_id=worker_id,
+                    error=None, cancel_requested=False, worker_id=worker_id, retry_after=None,
                 )
             )
             db.commit()

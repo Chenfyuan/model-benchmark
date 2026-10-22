@@ -39,6 +39,7 @@ def run_out(run: Run, headline: RunMetric | None, adjusted: dict | None = None) 
         engine=run.engine, engine_version=run.engine_version, created_at=run.created_at, started_at=run.started_at,
         finished_at=run.finished_at, attempts=run.attempts or 1, reused_samples=run.reused_samples,
         input_tokens=run.input_tokens, output_tokens=run.output_tokens, cost=run.cost, stop_reason=run.stop_reason,
+        retry_after=run.retry_after, auto_retries=run.auto_retries,
         headline=None if headline is None else {"label": headline.label, "value": headline.value, "display": _fmt(headline)},
         adjusted=None if adjusted is None else {k: adjusted[k] for k in ("adjusted", "display", "n_lenient", "n_manual")},
     )
@@ -163,6 +164,10 @@ def create_runs(body: RunCreate, db: Session = Depends(get_db), idempotency_key:
         if judge.protocol != "openai":
             raise ApiError("judge_protocol", "裁判模型目前只支持 OpenAI 格式的接口（引擎的裁判调用只走 OpenAI 格式）")
 
+    no_judge = sorted(d.name for d in datasets.values() if d.needs_judge)
+    if no_judge and body.judge_model_id is None:
+        raise ApiError("judge_required", f"评测集 {'、'.join(no_judge)} 的得分完全由裁判模型给出，必须选一个裁判模型", 422)
+
     if not body.confirm_over_budget:
         problems = _budget_problems(db, models, datasets, body)
         if problems:
@@ -236,6 +241,7 @@ def retry(run_id: int, db: Session = Depends(get_db)):
     r.started_at = r.finished_at = None
     r.stop_reason = None
     r.attempts = (r.attempts or 1) + 1
+    r.auto_retries, r.retry_after = 0, None
     r.resume = True  # the worker reuses samples the previous attempt already finished (billed once)
     db.commit()
     return run_out(r, None)

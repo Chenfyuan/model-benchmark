@@ -18,7 +18,7 @@ export interface WorkerStatus {
 }
 export interface Dataset {
   id: number; name: string; version: number; source: 'builtin' | 'custom'; kind: string
-  benchmark_id: string | null; capability: string | null; description: string; verified: boolean
+  benchmark_id: string | null; capability: string | null; description: string; verified: boolean; needs_judge: boolean
   num_samples: number | null; created_at: string
 }
 export interface Run {
@@ -30,6 +30,7 @@ export interface Run {
   attempts: number; reused_samples: number | null
   input_tokens: number | null; output_tokens: number | null; cost: number | null
   stop_reason: 'budget_run' | 'budget_month' | null
+  retry_after: string | null; auto_retries: number | null
   headline: { label: string; value: number | null; display: string } | null
   /** headline recomputed after lenient matching / manual review; null when nothing changed or it cannot be recomputed */
   adjusted: { adjusted: number; display: string; n_lenient: number; n_manual: number } | null

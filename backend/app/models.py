@@ -53,6 +53,12 @@ class Dataset(Base):
     path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # directory holding data.jsonl
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
+    @property
+    def needs_judge(self) -> bool:
+        from .services.catalog import NEEDS_JUDGE
+
+        return self.benchmark_id in NEEDS_JUDGE
+
 
 class Run(Base):
     """One evaluation task: model x dataset x configuration."""
@@ -84,6 +90,8 @@ class Run(Base):
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)  # None when the model has no price set
     stop_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)  # budget_run | budget_month
     worker_id: Mapped[str | None] = mapped_column(String(100), nullable=True)  # the worker slot that owns this run while it is running
+    auto_retries: Mapped[int | None] = mapped_column(Integer, nullable=True)  # automatic re-queues after provider errors (reset by a manual retry)
+    retry_after: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # queued runs wait until this time (back-off)
 
     limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # snapshot of everything that affects scores

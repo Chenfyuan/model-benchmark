@@ -34,6 +34,7 @@ const groups = computed(() => {
 })
 const pairs = computed(() => modelIds.value.length * datasetIds.value.length)
 const picked = computed(() => datasets.value.filter((d) => datasetIds.value.includes(d.id)))
+const mustJudge = computed(() => picked.value.filter((d) => d.needs_judge).map((d) => d.name))
 const needsJudge = computed(() => picked.value.some((d) => d.kind === 'vqa') && !judgeId.value)
 const unchecked = computed(() => models.value.filter((m) => modelIds.value.includes(m.id) && !m.last_check?.ok))
 const fullOnBuiltin = computed(() => mode.value === 'full' && picked.value.some((d) => d.source === 'builtin'))
@@ -89,7 +90,7 @@ async function submit() {
   } finally { submitting.value = false }
 }
 const modelState = (m: ModelEndpoint) => (!m.last_check ? ['未测试', 'default'] : m.last_check.ok ? ['可用', 'success'] : ['有问题', 'error'])
-const datasetTag = (d: Dataset) => (d.source === 'custom' ? [`自有 · ${d.num_samples} 条`, 'purple'] : d.verified ? ['已跑通', 'success'] : ['未验证', 'default'])
+const datasetTag = (d: Dataset) => (d.needs_judge ? ['需裁判模型', 'warning'] : d.source === 'custom' ? [`自有 · ${d.num_samples} 条`, 'purple'] : d.verified ? ['已跑通', 'success'] : ['未验证', 'default'])
 </script>
 
 <template>
@@ -152,7 +153,8 @@ const datasetTag = (d: Dataset) => (d.source === 'custom' ? [`自有 · ${d.num_
           <div class="field">
             <div class="label">裁判模型（可选，只能选 OpenAI 格式）</div>
             <a-select v-model:value="judgeId" :options="judgeOptions" allow-clear placeholder="不使用裁判模型" style="width: 100%; max-width: 420px" />
-            <a-alert v-if="needsJudge" type="info" show-icon style="margin-top: 10px" message="所选评测集里有视觉问答（开放问答）。不配裁判模型时只能算 BLEU / ROUGE，没有准确率。" />
+            <a-alert v-if="mustJudge.length && !judgeId" type="error" show-icon style="margin-top: 10px" :message="`${mustJudge.join('、')} 的得分完全由裁判模型给出，必须选一个裁判模型。`" />
+            <a-alert v-else-if="needsJudge" type="info" show-icon style="margin-top: 10px" message="所选评测集里有视觉问答（开放问答）。不配裁判模型时只能算 BLEU / ROUGE，没有准确率。" />
           </div>
           <a-collapse ghost>
             <a-collapse-panel key="adv" header="高级设置">
@@ -185,7 +187,7 @@ const datasetTag = (d: Dataset) => (d.source === 'custom' ? [`自有 · ${d.num_
             <div v-for="n in [...new Set(estimates.flatMap((e) => e.est.notes))]" :key="n" class="faint" style="font-size: 12px; margin-top: 6px"><ExclamationCircleFilled /> {{ n }}</div>
           </template>
           <div v-else class="faint" style="font-size: 13px">选择模型和评测集后，这里显示用量预估。</div>
-          <a-button type="primary" size="large" block :disabled="!pairs" :loading="submitting" style="margin-top: 18px" @click="submit">
+          <a-button type="primary" size="large" block :disabled="!pairs || (mustJudge.length > 0 && !judgeId)" :loading="submitting" style="margin-top: 18px" @click="submit">
             <template #icon><ThunderboltOutlined /></template>{{ pairs ? `开始评测（${pairs}）` : '请先选择' }}
           </a-button>
         </div>

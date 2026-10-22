@@ -24,6 +24,8 @@ class Settings:
         self.worker_poll_sec = float(os.environ.get("WORKER_POLL_SEC", "2"))
         self.worker_concurrency = max(1, int(os.environ.get("WORKER_CONCURRENCY", "1")))  # runs one worker process handles at once
         self.worker_stale_sec = int(os.environ.get("WORKER_STALE_SEC", "45"))  # no heartbeat for this long = the worker is gone
+        self.auto_retry_max = int(os.environ.get("AUTO_RETRY_MAX", "2"))  # automatic re-queues after a provider error (429 / 5xx / timeouts); 0 = off
+        self.auto_retry_base_sec = int(os.environ.get("AUTO_RETRY_BASE_SEC", "60"))  # back-off: base, 2x base, 4x base ...
         self.frontend_dist = Path(os.environ.get("FRONTEND_DIST", REPO_ROOT / "frontend" / "dist"))
 
     def secret_key(self) -> bytes:

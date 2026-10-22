@@ -121,6 +121,9 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         <div class="row" style="margin-top: 8px"><a-button size="small" @click="router.push('/settings')">去调整上限</a-button><a-button size="small" type="primary" @click="retry">重试（只补跑没完成的）</a-button></div>
       </template>
     </a-alert>
+    <a-alert v-else-if="run.error && run.status === 'queued'" type="warning" show-icon message="服务商返回了临时错误，已排队自动重试" style="margin-bottom: 16px">
+      <template #description><div class="pre">{{ run.error }}</div><div v-if="run.retry_after" class="faint" style="margin-top: 4px; font-size: 12.5px">下次尝试不早于 {{ fmtTime(run.retry_after) }}。</div></template>
+    </a-alert>
     <a-alert v-else-if="run.error" type="error" show-icon message="任务失败" style="margin-bottom: 16px"><template #description><pre class="mono pre" style="margin: 0">{{ run.error }}</pre><div v-if="run.attempts >= 1 && run.status === 'failed'" class="faint" style="margin-top: 6px; font-size: 12.5px">点“重试”会接着跑：已经答完的样本不会再发给模型，也不会重复计费。</div></template></a-alert>
     <div v-if="isActive(run)" class="card card-pad" style="margin-bottom: 16px; text-align: center; padding: 36px 20px">
       <a-spin />

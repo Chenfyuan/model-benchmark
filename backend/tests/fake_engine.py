@@ -20,6 +20,7 @@ if imgdir:
 print('Evaluating[x]: 100%|##########| 2/2 [00:01<00:00,  1.00it/s]')
 """
 FAIL_SCRIPT = "import os, sys; print('boom: key was ' + os.environ['EVAL_API_KEY']); sys.exit(1)"
+TRANSIENT_SCRIPT = "import sys; print('openai.InternalServerError: Error code: 503 - No available accounts'); sys.exit(1)"
 SLEEP_SCRIPT = "import time; print('Downloading data: 10%'); time.sleep(120)"
 
 # Behaves like the real EvalScope as measured in the cache experiment: one prediction line is appended per answered sample
@@ -52,7 +53,7 @@ class FakeAdapter(EvalScopeAdapter):
 
     def prepare(self, ctx: RunContext) -> Prepared:
         prepared = super().prepare(ctx)  # exercises the real config writing
-        script = {"ok": COPY_SCRIPT, "fail": FAIL_SCRIPT, "sleep": SLEEP_SCRIPT, "slow": SLOW_SCRIPT}[self.mode]
+        script = {"ok": COPY_SCRIPT, "fail": FAIL_SCRIPT, "sleep": SLEEP_SCRIPT, "slow": SLOW_SCRIPT, "transient": TRANSIENT_SCRIPT}[self.mode]
         env = dict(prepared.env)
         env.update(TASK_JSON=str(ctx.work_dir / "task.json"), FAKE_N=str(self.n), FAKE_DELAY=str(self.delay),
                    FAKE_CALLS=self.calls_file or str(ctx.work_dir.parent / "calls.log"))

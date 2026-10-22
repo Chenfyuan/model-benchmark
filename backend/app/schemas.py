@@ -64,6 +64,7 @@ class DatasetOut(ORM):
     capability: str | None
     description: str
     verified: bool
+    needs_judge: bool = False
     num_samples: int | None
     created_at: datetime
 
@@ -107,6 +108,8 @@ class RunOut(ORM):
     cost: float | None = None
     stop_reason: str | None = None  # budget_run | budget_month when a spending limit stopped the run
     headline: dict[str, Any] | None = None  # primary metric, for the run list
+    retry_after: datetime | None = None
+    auto_retries: int | None = None
     adjusted: dict[str, Any] | None = None  # headline recomputed after lenient matching / manual review (None = unchanged)
 
 

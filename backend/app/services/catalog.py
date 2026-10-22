@@ -12,13 +12,16 @@ from ..models import Dataset
 
 CAPABILITIES = {"doc_chart": "文档图表", "general_qa": "通用问答", "tool_call": "工具调用"}
 
+# Benchmarks whose score comes entirely from an LLM judge: without a judge model the engine refuses to start.
+NEEDS_JUDGE = {"charxiv"}
+
 BUILTIN: list[dict] = [
     # document / chart
     dict(benchmark_id="chartqa", name="ChartQA", capability="doc_chart", verified=True, description="图表问答"),
     dict(benchmark_id="docvqa", name="DocVQA", capability="doc_chart", verified=True, description="文档页面问答（指标为 Similarity）"),
     dict(benchmark_id="infovqa", name="InfoVQA", capability="doc_chart", description="信息图问答"),
     dict(benchmark_id="ocr_bench", name="OCRBench", capability="doc_chart", description="文字识别"),
-    dict(benchmark_id="charxiv", name="CharXiv", capability="doc_chart", description="科研论文图表理解"),
+    dict(benchmark_id="charxiv", name="CharXiv", capability="doc_chart", description="科研论文图表理解（必须配裁判模型）"),
     dict(benchmark_id="ai2d", name="AI2D", capability="doc_chart", description="科学图示问答"),
     # general QA
     dict(benchmark_id="mm_bench", name="MMBench", capability="general_qa", verified=True, description="通用多模态选择题（中英文）"),

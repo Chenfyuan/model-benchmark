@@ -95,7 +95,8 @@ const columns = [
           <div class="grid grid-3">
             <div v-for="d in list" :key="d.id" class="card card-pad">
               <div class="row-between"><b>{{ d.name }}</b>
-                <a-tag v-if="d.verified" color="success" style="margin: 0"><CheckCircleFilled /> 已跑通</a-tag>
+                <a-tag v-if="d.needs_judge" color="warning" style="margin: 0">需裁判模型</a-tag>
+                <a-tag v-else-if="d.verified" color="success" style="margin: 0"><CheckCircleFilled /> 已跑通</a-tag>
                 <a-tag v-else style="margin: 0">未验证</a-tag>
               </div>
               <div class="muted" style="margin: 6px 0 8px; font-size: 13.5px">{{ d.description }}</div>
