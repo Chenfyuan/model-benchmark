@@ -73,6 +73,7 @@ class RunCreate(BaseModel):
     batch_size: int = Field(default=2, ge=1, le=64)
     max_tokens: int = Field(default=1024, ge=1)
     temperature: float = Field(default=0.0, ge=0, le=2)
+    confirm_over_budget: bool = False  # proceed even though the estimate exceeds an optional limit
 
 
 class RunOut(ORM):
@@ -96,6 +97,12 @@ class RunOut(ORM):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    attempts: int = 1
+    reused_samples: int | None = None  # samples skipped on the latest retry because they were already finished
+    input_tokens: int | None = None  # billed, cumulative over attempts
+    output_tokens: int | None = None
+    cost: float | None = None
+    stop_reason: str | None = None  # budget_run | budget_month when a spending limit stopped the run
     headline: dict[str, Any] | None = None  # primary metric, for the run list
 
 

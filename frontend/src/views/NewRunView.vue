@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CheckOutlined, ExclamationCircleFilled, ThunderboltOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+import { Modal, message } from 'ant-design-vue'
+import { h } from 'vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, type Dataset, type Estimate, type ModelEndpoint } from '../api'
@@ -57,15 +58,34 @@ watch([modelIds, datasetIds, limit], async () => {
 })
 
 const money = (c: number) => c.toFixed(c < 0.1 ? 4 : 2)
+const askToConfirm = (details: string[]) => new Promise<boolean>((resolve) => {
+  Modal.confirm({
+    title: '预计会超出费用上限',
+    content: h('div', [h('ul', { style: 'padding-left: 18px; margin: 8px 0' }, details.map((d) => h('li', d))), h('div', { style: 'color: #888' }, '仍然提交的话，运行中如果实际用量超限，任务还是会被自动停止。')]),
+    okText: '仍然提交', cancelText: '取消', onOk: () => resolve(true), onCancel: () => resolve(false),
+  })
+})
 async function submit() {
   submitting.value = true
   try {
-    const runs = await api.createRuns({
+    const body = {
       model_ids: modelIds.value, dataset_ids: datasetIds.value, judge_model_id: judgeId.value ?? null, limit: limit.value,
       batch_size: batchSize.value, max_tokens: maxTokens.value, temperature: temperature.value,
-    }, crypto.randomUUID())
+    }
+    const key = crypto.randomUUID()
+    let runs
+    try {
+      runs = await api.createRuns(body, key, true)
+    } catch (e: any) {
+      const d = e.response?.data
+      if (d?.code !== 'budget_exceeded') { message.error(d?.message ?? '创建失败'); return }
+      if (!(await askToConfirm(d.details ?? []))) return
+      runs = await api.createRuns({ ...body, confirm_over_budget: true }, key)
+    }
     message.success(`已创建 ${runs.length} 个评测任务`)
-    router.push('/runs')
+    // several models on one dataset: the natural next step is to compare them
+    if (datasetIds.value.length === 1 && modelIds.value.length > 1) router.push({ path: '/compare', query: { runs: runs.map((r) => r.id).join(',') } })
+    else router.push('/runs')
   } finally { submitting.value = false }
 }
 const modelState = (m: ModelEndpoint) => (!m.last_check ? ['未测试', 'default'] : m.last_check.ok ? ['可用', 'success'] : ['有问题', 'error'])

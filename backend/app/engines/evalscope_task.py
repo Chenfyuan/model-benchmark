@@ -28,6 +28,8 @@ def main(path: str) -> None:
         kwargs["dataset_args"] = cfg["dataset_args"]
     if cfg.get("limit"):
         kwargs["limit"] = cfg["limit"]
+    if cfg.get("use_cache"):
+        kwargs["use_cache"] = cfg["use_cache"]  # continue from a previous output dir: finished samples are not re-sent
     if cfg.get("judge"):
         kwargs["judge_strategy"] = "llm"
         kwargs["judge_model_args"] = {**cfg["judge"], "api_key": os.environ["JUDGE_API_KEY"]}

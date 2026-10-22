@@ -73,6 +73,15 @@ class Run(Base):
     pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
+    # Everything below is nullable so databases created before these columns existed keep working (see db.ensure_columns).
+    attempts: Mapped[int | None] = mapped_column(Integer, nullable=True, default=1)  # 1 + number of retries
+    resume: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)  # next start reuses finished samples
+    reused_samples: Mapped[int | None] = mapped_column(Integer, nullable=True)  # samples skipped thanks to the cache
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)  # billed, cumulative over attempts
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost: Mapped[float | None] = mapped_column(Float, nullable=True)  # None when the model has no price set
+    stop_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)  # budget_run | budget_month
+
     limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # snapshot of everything that affects scores
     engine: Mapped[str] = mapped_column(String(30), default="evalscope")
@@ -129,3 +138,12 @@ class SampleResult(Base):
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Setting(Base):
+    """Small key/value store for platform-wide settings (currently only the budget limits)."""
+
+    __tablename__ = "setting"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { DeleteOutlined, PlusOutlined, RedoOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons-vue'
+import { BarChartOutlined, DeleteOutlined, PlusOutlined, RedoOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, type Run } from '../api'
 import PageHeader from '../components/PageHeader.vue'
 import StatusBadge from '../components/StatusBadge.vue'
-import { fmtAgo, fmtDuration, isActive } from '../format'
+import { STOP_REASON_LABEL, fmtAgo, fmtCost, fmtDuration, fmtTokens, isActive } from '../format'
 
 const router = useRouter()
 const runs = ref<Run[]>([])
@@ -14,6 +14,7 @@ const total = ref(0)
 const page = ref(1)
 const filter = ref<'all' | 'running' | 'completed' | 'failed'>('all')
 const loading = ref(true)
+const selected = ref<number[]>([])
 const counts = ref({ all: 0, running: 0, completed: 0, failed: 0 })
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -58,10 +59,16 @@ const columns = [
   { title: '任务', key: 'task' },
   { title: '状态', key: 'status', width: 220 },
   { title: '主指标', key: 'headline', width: 160 },
+  { title: '用量', key: 'usage', width: 130 },
   { title: '时间', key: 'time', width: 150 },
   { title: '', key: 'actions', width: 150, align: 'right' as const },
 ]
-const customRow = (r: Run) => ({ onClick: () => router.push(`/runs/${r.id}`), style: 'cursor: pointer' })
+const customRow = (r: Run) => ({
+  onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ant-table-selection-column')) router.push(`/runs/${r.id}`) },
+  style: 'cursor: pointer',
+})
+const canCompare = computed(() => selected.value.length >= 2 && selected.value.length <= 8)
+const compare = () => router.push({ path: '/compare', query: { runs: selected.value.join(',') } })
 </script>
 
 <template>
@@ -80,16 +87,32 @@ const customRow = (r: Run) => ({ onClick: () => router.push(`/runs/${r.id}`), st
     <div class="card" style="overflow: hidden">
       <div class="row-between" style="padding: 14px 20px">
         <a-segmented v-model:value="filter" :options="filters" />
-        <a-button type="text" @click="load()"><template #icon><ReloadOutlined /></template>刷新</a-button>
+        <div class="row">
+          <a-tooltip :title="selected.length < 2 ? '在左边勾选 2–8 个任务' : selected.length > 8 ? '一次最多对比 8 个' : ''">
+            <a-button :type="canCompare ? 'primary' : 'default'" :disabled="!canCompare" @click="compare"><template #icon><BarChartOutlined /></template>对比所选{{ selected.length ? ` (${selected.length})` : '' }}</a-button>
+          </a-tooltip>
+          <a-button type="text" @click="load()"><template #icon><ReloadOutlined /></template>刷新</a-button>
+        </div>
       </div>
       <a-table :columns="columns" :data-source="runs" :loading="loading" row-key="id" :custom-row="customRow"
+        :row-selection="{ selectedRowKeys: selected, onChange: (k: (string | number)[]) => (selected = k as number[]) }"
         :pagination="total > 12 ? { current: page, pageSize: 12, total, showSizeChanger: false, onChange: (p: number) => (page = p) } : false">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'task'">
             <div style="font-weight: 600">{{ record.model_name }}</div>
             <div class="muted" style="font-size: 13px">{{ record.dataset_name }} <span class="faint">v{{ record.dataset_version }}</span><span v-if="record.judge_model_name" class="faint"> · 裁判 {{ record.judge_model_name }}</span></div>
           </template>
-          <template v-else-if="column.key === 'status'"><StatusBadge :run="record as Run" show-progress /></template>
+          <template v-else-if="column.key === 'status'">
+            <StatusBadge :run="record as Run" show-progress />
+            <a-tag v-if="record.stop_reason" color="orange" style="margin-top: 4px">{{ STOP_REASON_LABEL[record.stop_reason] }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'usage'">
+            <template v-if="record.input_tokens != null">
+              <div>{{ fmtTokens((record.input_tokens ?? 0) + (record.output_tokens ?? 0)) }} token</div>
+              <div class="faint" style="font-size: 12px">{{ record.cost != null ? `费用 ${fmtCost(record.cost)}` : '未填单价' }}<span v-if="record.attempts > 1"> · 重试 {{ record.attempts - 1 }} 次</span></div>
+            </template>
+            <span v-else class="faint">—</span>
+          </template>
           <template v-else-if="column.key === 'headline'">
             <template v-if="record.headline">
               <span class="hl">{{ record.headline.display }}</span> <span class="faint" style="font-size: 12px; margin-left: 6px">{{ record.headline.label }}</span>

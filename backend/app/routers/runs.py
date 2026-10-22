@@ -15,6 +15,7 @@ from ..db import get_db
 from ..errors import ApiError
 from ..models import Dataset, ModelEndpoint, Run, RunMetric, SampleResult, utcnow
 from ..schemas import EstimateIn, MetricOut, Page, RunCreate, RunOut, SampleOut
+from ..services.budget import get_budget, month_usage
 from ..worker import run_dir
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -35,7 +36,8 @@ def run_out(run: Run, headline: RunMetric | None) -> RunOut:
         judge_model_name=run.judge_model.name if run.judge_model else None, parent_run_id=run.parent_run_id,
         status=run.status, stage=run.stage, progress=run.progress, error=run.error, limit=run.limit, config=run.config,
         engine=run.engine, engine_version=run.engine_version, created_at=run.created_at, started_at=run.started_at,
-        finished_at=run.finished_at,
+        finished_at=run.finished_at, attempts=run.attempts or 1, reused_samples=run.reused_samples,
+        input_tokens=run.input_tokens, output_tokens=run.output_tokens, cost=run.cost, stop_reason=run.stop_reason,
         headline=None if headline is None else {"label": headline.label, "value": headline.value, "display": _fmt(headline)},
     )
 
@@ -56,17 +58,13 @@ def get_or_404(db: Session, run_id: int) -> Run:
 
 # ------------------------------------------------------------------ create / estimate
 
-@router.post("/estimate")
-def estimate(body: EstimateIn, db: Session = Depends(get_db)):
-    model, ds = db.get(ModelEndpoint, body.model_id), db.get(Dataset, body.dataset_id)
-    if not model or not ds:
-        raise ApiError("not_found", "模型或评测集不存在", 404)
+def estimate_for(db: Session, model: ModelEndpoint, ds: Dataset, limit: int | None) -> dict:
     notes: list[str] = []
     n: int | None = None
     if ds.source == "custom" and ds.num_samples:
-        n = min(ds.num_samples, body.limit) if body.limit else ds.num_samples
-    elif body.limit:
-        notes.append(f"内置基准按“每个子集 {body.limit} 题”运行，子集数在首次下载数据后才知道，所以暂时无法给出总题数。")
+        n = min(ds.num_samples, limit) if limit else ds.num_samples
+    elif limit:
+        notes.append(f"内置基准按“每个子集 {limit} 题”运行，子集数在首次下载数据后才知道，所以暂时无法给出总题数。")
     else:
         notes.append("内置基准的总题数要在首次下载数据后才知道；建议先用“只跑前 20 题”试跑。")
 
@@ -94,6 +92,41 @@ def estimate(body: EstimateIn, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/estimate")
+def estimate(body: EstimateIn, db: Session = Depends(get_db)):
+    model, ds = db.get(ModelEndpoint, body.model_id), db.get(Dataset, body.dataset_id)
+    if not model or not ds:
+        raise ApiError("not_found", "模型或评测集不存在", 404)
+    return estimate_for(db, model, ds, body.limit)
+
+
+def _budget_problems(db: Session, models: dict[int, ModelEndpoint], datasets: dict[int, Dataset], body: RunCreate) -> list[str]:
+    """Estimated overruns of the optional limits for the runs about to be created (only where the size is known)."""
+    budget = get_budget(db)
+    if not budget.any:
+        return []
+    problems: list[str] = []
+    month = month_usage(db)
+    total_tokens, total_cost = 0, 0.0
+    for mid in body.model_ids:
+        for did in body.dataset_ids:
+            e = estimate_for(db, models[mid], datasets[did], body.limit)
+            if e["total_tokens"] is None:
+                continue
+            total_tokens += e["total_tokens"]
+            total_cost += e["cost"] or 0.0
+            label = f"{models[mid].name} × {datasets[did].name}"
+            if budget.per_run_max_tokens is not None and e["total_tokens"] > budget.per_run_max_tokens:
+                problems.append(f"{label}：预计 {e['total_tokens']:,} token，超过单次上限 {int(budget.per_run_max_tokens):,}")
+            if budget.per_run_max_cost is not None and e["cost"] is not None and e["cost"] > budget.per_run_max_cost:
+                problems.append(f"{label}：预计约 {e['cost']:.4f}，超过单次上限 {budget.per_run_max_cost:g}")
+    if budget.monthly_max_tokens is not None and month["tokens"] + total_tokens > budget.monthly_max_tokens:
+        problems.append(f"本月已用 {month['tokens']:,} token，加上这次预计 {total_tokens:,}，会超过月度上限 {int(budget.monthly_max_tokens):,}")
+    if budget.monthly_max_cost is not None and month["cost"] + total_cost > budget.monthly_max_cost:
+        problems.append(f"本月已花约 {month['cost']:.4f}，加上这次预计约 {total_cost:.4f}，会超过月度上限 {budget.monthly_max_cost:g}")
+    return problems
+
+
 @router.post("", response_model=list[RunOut], status_code=201)
 def create_runs(body: RunCreate, db: Session = Depends(get_db), idempotency_key: str | None = Header(default=None)):
     """Create one run per (model, dataset) pair. A repeated Idempotency-Key returns the runs already created."""
@@ -118,6 +151,11 @@ def create_runs(body: RunCreate, db: Session = Depends(get_db), idempotency_key:
             raise ApiError("model_not_found", "裁判模型不存在", 404)
         if judge.protocol != "openai":
             raise ApiError("judge_protocol", "裁判模型目前只支持 OpenAI 格式的接口（引擎的裁判调用只走 OpenAI 格式）")
+
+    if not body.confirm_over_budget:
+        problems = _budget_problems(db, models, datasets, body)
+        if problems:
+            raise ApiError("budget_exceeded", "预计会超出费用上限；确认后可以继续提交", 409, problems)
 
     config = {"batch_size": body.batch_size, "max_tokens": body.max_tokens, "temperature": body.temperature}
     created: list[Run] = []
@@ -176,7 +214,7 @@ def cancel(run_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{run_id}/retry", response_model=RunOut)
 def retry(run_id: int, db: Session = Depends(get_db)):
-    """Re-queue a failed or cancelled run with the same configuration (it starts over; no partial reuse yet)."""
+    """Re-queue a failed or cancelled run. Samples the previous attempt already finished are reused, not billed again."""
     r = get_or_404(db, run_id)
     if r.status not in ("failed", "cancelled"):
         raise ApiError("not_retryable", f"状态为 {r.status} 的任务不能重试", 409)
@@ -184,6 +222,9 @@ def retry(run_id: int, db: Session = Depends(get_db)):
     db.execute(delete(SampleResult).where(SampleResult.run_id == r.id))
     r.status, r.stage, r.progress, r.error, r.cancel_requested = "queued", "queued", 0.0, None, False
     r.started_at = r.finished_at = None
+    r.stop_reason = None
+    r.attempts = (r.attempts or 1) + 1
+    r.resume = True  # the worker reuses samples the previous attempt already finished (billed once)
     db.commit()
     return run_out(r, None)
 

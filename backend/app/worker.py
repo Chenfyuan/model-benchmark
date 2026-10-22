@@ -19,8 +19,10 @@ from .config import get_settings
 from .crypto import decrypt, redact
 from .db import SessionLocal, init_db
 from .engines import get_adapter
-from .engines.base import Endpoint, EngineAdapter, ParsedResult, RunContext
+from .engines.base import Endpoint, EngineAdapter, ParsedResult, RunContext, Usage
 from .models import ModelEndpoint, Run, RunMetric, SampleResult, utcnow
+from .services.budget import check as check_budget
+from .services.budget import get_budget, month_usage, run_cost
 
 log = logging.getLogger("worker")
 LOG_TAIL_BYTES = 16000
@@ -96,6 +98,24 @@ def _terminate(proc: subprocess.Popen) -> None:
         pass
 
 
+def _budget_stop(run_id: int, usage: Usage, cost: float | None, in_flight: int = 1) -> tuple[str, str] | None:
+    """(stop_reason, message) if this run's usage breaks an optional spending limit. By default there are no limits."""
+    with SessionLocal() as db:
+        limits = get_budget(db)
+        if not limits.any:
+            return None
+        month = month_usage(db, exclude_run_id=run_id)
+    verdict = check_budget(limits, usage.input_tokens + usage.output_tokens, cost, month["tokens"], month["cost"])
+    if verdict is None:
+        return None
+    reason, message = verdict
+    keep = f"已完成的 {usage.samples} 题的结果还在，调高上限后点“重试”会跳过它们，不会重复计费。" if usage.samples else ""
+    # stopping kills the engine: requests in flight at that moment (at most the concurrency) were already sent to the model
+    # but produced no result, so they are neither counted in the usage above nor reused by a retry.
+    lost = f"停止时正在进行的请求（最多 {in_flight} 个）可能已经发给模型，但没有结果，不计入上面的用量，重试时会重发。"
+    return reason, f"{message}，已停止。{keep}{lost}"
+
+
 def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
     """Execute one run that is already marked `running`. Returns the final status."""
     settings = get_settings()
@@ -105,23 +125,59 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
             run = db.get(Run, run_id)
             adapter = adapter or get_adapter(run.engine)
             ctx = build_context(run)
+            resume = bool(run.resume)
+            prices = (run.model.price_input_per_mtok, run.model.price_output_per_mtok)
+            stored = Usage(run.input_tokens or 0, run.output_tokens or 0)
         secrets = [ctx.model.api_key] + ([ctx.judge.api_key] if ctx.judge else [])
 
-        shutil.rmtree(ctx.work_dir, ignore_errors=True)
-        ctx.work_dir.mkdir(parents=True)
-        prepared = adapter.prepare(ctx)
+        # A retry continues from the previous attempt's output, so samples that were already answered (and paid for)
+        # are not sent again. Anything else starts from a clean directory.
+        ctx.work_dir.mkdir(parents=True, exist_ok=True)
+        previous = adapter.resumable(ctx) if resume else None
+        for child in ctx.work_dir.iterdir():
+            if previous and child.name == "out":
+                continue
+            shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink(missing_ok=True)
+        ctx.resume_from = previous[0] if previous else None
+        _update(run_id, resume=False, reused_samples=previous[1] if previous else None,
+                **({} if previous else {"input_tokens": None, "output_tokens": None, "cost": None}))
+        if not previous:
+            stored = Usage()
 
+        # Do not even start if a limit is already used up (e.g. the month's budget is spent).
+        stop = _budget_stop(run_id, stored, run_cost(*prices, stored.input_tokens, stored.output_tokens), ctx.batch_size)
+        if stop:
+            _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(), stop_reason=stop[0], error=stop[1])
+            return "failed"
+
+        prepared = adapter.prepare(ctx)
         with open(prepared.log_path, "wb") as logf:
             proc = subprocess.Popen(
                 prepared.cmd, cwd=prepared.cwd, env=prepared.env, stdout=logf, stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
         _update(run_id, pid=proc.pid, stage="preparing")
+        tracker = adapter.usage_tracker(ctx)
         started = time.time()
         cancelled = timed_out = False
+        stop = None
         last_stage: tuple[str, float | None] = ("preparing", None)
+        last_usage: tuple[int, int] = (-1, -1)
+        tick = 0
+
+        def sync_usage() -> tuple[Usage, float | None]:
+            """Persist billed usage whenever it changed; returns (usage, money spent or None if the model has no price)."""
+            nonlocal last_usage
+            usage = tracker.poll()
+            cost = run_cost(*prices, usage.input_tokens, usage.output_tokens)
+            if (usage.input_tokens, usage.output_tokens) != last_usage:
+                last_usage = (usage.input_tokens, usage.output_tokens)
+                _update(run_id, input_tokens=usage.input_tokens, output_tokens=usage.output_tokens, cost=cost)
+            return usage, cost
+
         while proc.poll() is None:
             time.sleep(1)
+            tick += 1
             with SessionLocal() as db:
                 cancelled = bool(db.scalar(select(Run.cancel_requested).where(Run.id == run_id)))
             if cancelled:
@@ -131,15 +187,25 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
                 timed_out = True
                 _terminate(proc)
                 break
+            usage, cost = sync_usage()
+            stop = _budget_stop(run_id, usage, cost, ctx.batch_size)
+            if stop:
+                _terminate(proc)
+                break
             stage = adapter.progress(_read_tail(prepared.log_path))
             if stage != last_stage:
                 last_stage = stage
                 _update(run_id, stage=stage[0], progress=stage[1] or 0.0)
 
+        usage, cost = sync_usage()  # whatever the engine managed to write before it stopped
         log_text = _read_tail(prepared.log_path)
         if cancelled:
             _update(run_id, status="cancelled", stage="done", pid=None, finished_at=utcnow())
             return "cancelled"
+        if stop:
+            final = _budget_stop(run_id, usage, cost, ctx.batch_size) or stop  # recomputed with the usage written up to the kill
+            _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(), stop_reason=final[0], error=final[1])
+            return "failed"
         if timed_out:
             _update(run_id, status="failed", stage="done", pid=None, finished_at=utcnow(),
                     error=f"超过 {settings.run_timeout_sec} 秒的运行时间上限，已终止")
@@ -151,7 +217,7 @@ def process_run(run_id: int, adapter: EngineAdapter | None = None) -> str:
 
         _update(run_id, stage="collecting", progress=1.0)
         save_results(run_id, adapter.collect(ctx))
-        _update(run_id, status="completed", stage="done", pid=None, finished_at=utcnow(), error=None)
+        _update(run_id, status="completed", stage="done", pid=None, finished_at=utcnow(), error=None, stop_reason=None)
         return "completed"
     except Exception as e:  # noqa: BLE001  (never leave a run stuck in `running`)
         log.exception("run %s failed", run_id)

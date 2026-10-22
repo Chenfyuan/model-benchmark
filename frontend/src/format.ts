@@ -50,3 +50,18 @@ export function fmtDuration(a: string | null, b: string | null): string {
 }
 
 export const isActive = (r: Run) => r.status === 'queued' || r.status === 'running'
+
+export function fmtTokens(n: number | null | undefined): string {
+  if (n == null) return '—'
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k'
+  return String(n)
+}
+
+/** Money without a currency symbol (the platform does not know the currency of the prices a user typed). */
+export function fmtCost(c: number | null | undefined): string {
+  if (c == null) return '—'
+  return c < 0.01 ? c.toFixed(4) : c < 100 ? c.toFixed(2) : c.toFixed(0)
+}
+
+export const STOP_REASON_LABEL: Record<string, string> = { budget_run: '超出单次上限', budget_month: '超出月度上限' }

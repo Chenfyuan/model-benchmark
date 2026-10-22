@@ -28,6 +28,7 @@ class RunContext:
     batch_size: int = 2
     max_tokens: int = 1024
     temperature: float = 0.0
+    resume_from: Path | None = None  # a previous attempt's output to continue from (finished samples are reused)
 
 
 @dataclass
@@ -45,8 +46,26 @@ class ParsedResult:
     samples: list[dict[str, Any]] = field(default_factory=list)
 
 
+@dataclass
+class Usage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    samples: int = 0  # samples with a recorded model answer so far
+
+
+class UsageTracker(Protocol):
+    def poll(self) -> Usage:
+        """Billed usage so far, read incrementally from what the engine has already written to disk."""
+
+
 class EngineAdapter(Protocol):
     name: str
+
+    def resumable(self, ctx: RunContext) -> tuple[Path, int] | None:
+        """A previous attempt's output worth resuming from, and how many finished samples it holds."""
+
+    def usage_tracker(self, ctx: RunContext) -> UsageTracker:
+        """Live token accounting for one attempt (the same samples are never counted twice)."""
 
     def prepare(self, ctx: RunContext) -> Prepared:
         """Translate a run into an engine process (config file + command). Secrets go in `env`, never on disk."""

@@ -6,12 +6,11 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
 
 from . import errors
 from .config import get_settings
 from .db import SessionLocal, init_db
-from .routers import datasets, models, runs
+from .routers import compare, datasets, models, runs, settings
 from .services.catalog import seed_builtin
 
 
@@ -33,6 +32,8 @@ api = APIRouter(prefix="/api/v1")
 api.include_router(models.router)
 api.include_router(datasets.router)
 api.include_router(runs.router)
+api.include_router(compare.router)
+api.include_router(settings.router)
 
 
 @api.get("/health")

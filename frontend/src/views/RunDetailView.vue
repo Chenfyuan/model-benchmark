@@ -7,7 +7,7 @@ import { api, mediaUrl, type Metric, type Run, type Sample } from '../api'
 import MetricCard from '../components/MetricCard.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import SubsetChart from '../components/SubsetChart.vue'
-import { fmtDuration, fmtMetric, fmtTime, isActive } from '../format'
+import { STOP_REASON_LABEL, fmtCost, fmtDuration, fmtMetric, fmtTime, fmtTokens, isActive } from '../format'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,7 +82,7 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
     <div class="row-between" style="margin-bottom: 18px; align-items: flex-start">
       <div>
         <div class="row" style="gap: 12px"><h1 class="title">{{ run.model_name }} <span class="faint">×</span> {{ run.dataset_name }}</h1><StatusBadge :run="run" /></div>
-        <div class="muted" style="margin-top: 4px; font-size: 13.5px">任务 #{{ run.id }} · {{ fmtTime(run.created_at) }} · 耗时 {{ fmtDuration(run.started_at, run.finished_at) }}</div>
+        <div class="muted" style="margin-top: 4px; font-size: 13.5px">任务 #{{ run.id }} · {{ fmtTime(run.created_at) }} · 耗时 {{ fmtDuration(run.started_at, run.finished_at) }}<a-tag v-if="run.attempts > 1" style="margin-left: 8px">第 {{ run.attempts }} 次尝试</a-tag></div>
       </div>
       <div class="row">
         <a-button v-if="isActive(run)" danger @click="cancel"><template #icon><StopOutlined /></template>取消</a-button>
@@ -93,11 +93,18 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
     </div>
 
     <!-- state banners -->
-    <a-alert v-if="run.error" type="error" show-icon message="任务失败" style="margin-bottom: 16px"><template #description><pre class="mono pre" style="margin: 0">{{ run.error }}</pre></template></a-alert>
+    <a-alert v-if="run.stop_reason" type="warning" show-icon :message="`因费用上限停止 · ${STOP_REASON_LABEL[run.stop_reason]}`" style="margin-bottom: 16px">
+      <template #description>
+        <div class="pre">{{ run.error }}</div>
+        <div class="row" style="margin-top: 8px"><a-button size="small" @click="router.push('/settings')">去调整上限</a-button><a-button size="small" type="primary" @click="retry">重试（只补跑没完成的）</a-button></div>
+      </template>
+    </a-alert>
+    <a-alert v-else-if="run.error" type="error" show-icon message="任务失败" style="margin-bottom: 16px"><template #description><pre class="mono pre" style="margin: 0">{{ run.error }}</pre><div v-if="run.attempts >= 1 && run.status === 'failed'" class="faint" style="margin-top: 6px; font-size: 12.5px">点“重试”会接着跑：已经答完的样本不会再发给模型，也不会重复计费。</div></template></a-alert>
     <div v-if="isActive(run)" class="card card-pad" style="margin-bottom: 16px; text-align: center; padding: 36px 20px">
       <a-spin />
       <div style="font-size: 16px; font-weight: 600; margin-top: 12px">{{ run.status === 'queued' ? '排队中，等待 Worker 取走' : '评测进行中' }}</div>
       <a-progress v-if="run.status === 'running' && run.stage === 'evaluating'" :percent="Math.round(run.progress * 100)" style="max-width: 420px; margin: 8px auto 0" />
+      <div v-if="run.input_tokens != null" class="muted" style="font-size: 13px; margin-top: 4px">已用 {{ fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0)) }} token<span v-if="run.cost != null">，约 {{ fmtCost(run.cost) }}</span></div>
       <div class="muted" style="font-size: 13px; margin-top: 4px">完成后这里会自动显示结果</div>
     </div>
 
@@ -120,6 +127,8 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
     <a-tabs v-if="run.status === 'completed'" v-model:activeKey="tab">
       <!-- overview -->
       <a-tab-pane key="overview" tab="总览">
+        <a-alert v-if="run.reused_samples" type="info" show-icon style="margin-bottom: 16px" :message="`这是重试的结果：跳过了 ${run.reused_samples} 个已经答完的样本`"
+          description="下面的延迟和平均 token 只统计重新跑的样本；“累计用量”是所有尝试加在一起实际花掉的。" />
         <a-alert v-if="run.limit" type="info" show-icon message="这是限制了题数的结果" description="样本较少，分数波动大，不能直接和公开榜单的成绩比较。" style="margin-bottom: 16px" />
 
         <div v-if="others.length" class="grid grid-4" style="margin-bottom: 16px">
@@ -140,6 +149,11 @@ const num = (m?: Metric) => (m ? fmtMetric(m) : '—')
         <h3 class="section-title" style="margin: 24px 0 10px">成本与性能</h3>
         <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
           <MetricCard v-for="k in ['latency_mean', 'latency_p90', 'latency_max', 'input_tokens_mean', 'output_tokens_mean', 'output_tps']" :key="k" :label="perf[k]?.label ?? k" :value="num(perf[k])" />
+        </div>
+        <div v-if="run.input_tokens != null" class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px">
+          <MetricCard label="累计用量" :value="fmtTokens((run.input_tokens ?? 0) + (run.output_tokens ?? 0))" :hint="`输入 ${fmtTokens(run.input_tokens)} · 输出 ${fmtTokens(run.output_tokens)}`" />
+          <MetricCard label="费用" :value="fmtCost(run.cost)" :hint="run.cost == null ? '这个模型没有填写单价' : '按模型单价和累计用量计算'" />
+          <MetricCard label="尝试次数" :value="String(run.attempts)" :hint="run.attempts > 1 ? `重试时跳过了 ${run.reused_samples ?? 0} 个已完成的样本` : '一次跑完'" />
         </div>
         <a-alert v-if="perf.input_tokens_mean && perf.input_tokens_mean.value! > 1500" type="warning" show-icon style="margin-top: 14px"
           :message="`平均每题输入 ${Math.round(perf.input_tokens_mean.value!)} token`" description="其中通常包含网关每次请求附加的固定内容（见“模型管理”里的连通测试提醒），估算费用时要把它算进去。" />
