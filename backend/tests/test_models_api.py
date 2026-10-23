@@ -121,3 +121,33 @@ def test_check_endpoint_stores_result(client, model, monkeypatch):
 @pytest.mark.parametrize("url,expected", [("https://a.com", "https://a.com/v1"), ("https://a.com/v1/", "https://a.com/v1")])
 def test_openai_base(url, expected):
     assert model_check.openai_base(url) == expected
+
+
+def test_extra_headers_are_sent_on_check(monkeypatch):
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("AIGC_USER"))
+        return _openai_handler(request)
+
+    _install_mock(monkeypatch, handler)
+    r = model_check.check_model("openai", "http://gw.example.com", "k", "m", extra_headers={"AIGC_USER": "alice"})
+    assert r["ok"] and seen and set(seen) == {"alice"}
+
+
+def test_gateway_error_with_http_200_is_reported(monkeypatch):
+    err = {"code": "4405", "message": "chatGpt.access.token.user.noExist"}
+    _install_mock(monkeypatch, lambda request: httpx.Response(200, json=err))
+    r = model_check.check_model("openai", "http://gw.example.com", "k", "m")
+    assert not r["ok"] and "noExist" in r["checks"]["text"]["detail"]
+
+
+def test_extra_headers_roundtrip_and_validation(client):
+    body = {**MODEL, "name": "with-headers", "extra_headers": {" AIGC_USER ": " alice "}}
+    r = client.post("/api/v1/models", json=body)
+    assert r.status_code == 201 and r.json()["extra_headers"] == {"AIGC_USER": "alice"}
+    mid = r.json()["id"]
+    for bad in ({"Authorization": "x"}, {"bad name": "x"}, {"X-A": ""}):
+        assert client.put(f"/api/v1/models/{mid}", json={"extra_headers": bad}).status_code == 422
+    r = client.put(f"/api/v1/models/{mid}", json={"extra_headers": {}})
+    assert r.status_code == 200 and r.json()["extra_headers"] is None

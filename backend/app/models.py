@@ -32,6 +32,8 @@ class ModelEndpoint(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # how many runs of this model may be evaluated at the same time (NULL = 1); each run already sends `batch_size` requests at once
     max_parallel_runs: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # extra HTTP headers sent with every request to this model (e.g. a gateway's user-identity header); not secret, shown in the UI
+    extra_headers: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
 
 
 class Dataset(Base):

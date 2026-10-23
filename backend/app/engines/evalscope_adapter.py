@@ -85,7 +85,8 @@ class EvalScopeAdapter:
             "dataset_args": dataset_args,
             "limit": ctx.limit,
             "work_dir": str(ctx.work_dir / "out"),
-            "generation_config": {"max_tokens": ctx.max_tokens, "temperature": ctx.temperature},
+            "generation_config": {"max_tokens": ctx.max_tokens, "temperature": ctx.temperature,
+                                  **({"extra_headers": m.extra_headers} if m.extra_headers else {})},
             "eval_batch_size": ctx.batch_size,
         }
         if ctx.resume_from:
@@ -95,6 +96,8 @@ class EvalScopeAdapter:
         env["PYTHONPATH"] = str(BACKEND_DIR) + os.pathsep + env.get("PYTHONPATH", "")
         if ctx.judge:
             cfg["judge"] = {"model_id": ctx.judge.model_name, "api_url": openai_base(ctx.judge.base_url)}
+            if ctx.judge.extra_headers:
+                cfg["judge"]["generation_config"] = {"extra_headers": ctx.judge.extra_headers}
             env["JUDGE_API_KEY"] = ctx.judge.api_key
 
         ctx.work_dir.mkdir(parents=True, exist_ok=True)

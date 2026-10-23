@@ -48,7 +48,8 @@ HEARTBEAT_SEC = 5
 
 
 def _endpoint(m: ModelEndpoint) -> Endpoint:
-    return Endpoint(protocol=m.protocol, base_url=m.base_url, model_name=m.model_name, api_key=decrypt(m.api_key_enc))
+    return Endpoint(protocol=m.protocol, base_url=m.base_url, model_name=m.model_name, api_key=decrypt(m.api_key_enc),
+                    extra_headers=m.extra_headers or None)
 
 
 def run_dir(run_id: int) -> Path:

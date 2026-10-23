@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 
@@ -8,6 +9,28 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+_HEADER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_RESERVED_HEADERS = {"authorization", "x-api-key", "content-type", "content-length", "host", "anthropic-version"}
+
+
+def _clean_headers(v: dict[str, str] | None) -> dict[str, str] | None:
+    if not v:
+        return None
+    if len(v) > 20:
+        raise ValueError("自定义请求头最多 20 个")
+    out: dict[str, str] = {}
+    for k, val in v.items():
+        k, val = k.strip(), str(val).strip()
+        if not _HEADER_NAME.match(k):
+            raise ValueError(f"请求头名称不合法：{k}（只能包含字母、数字、- 和 _）")
+        if k.lower() in _RESERVED_HEADERS:
+            raise ValueError(f"{k} 由系统设置，不能在这里覆盖")
+        if not val or "\n" in val or "\r" in val:
+            raise ValueError(f"请求头 {k} 的值不能为空或换行")
+        out[k] = val
+    return out
 
 
 class ModelCreate(BaseModel):
@@ -19,6 +42,9 @@ class ModelCreate(BaseModel):
     price_input_per_mtok: float | None = Field(default=None, ge=0)
     price_output_per_mtok: float | None = Field(default=None, ge=0)
     max_parallel_runs: int | None = Field(default=None, ge=1, le=20)
+    extra_headers: dict[str, str] | None = None
+
+    _headers = field_validator("extra_headers")(lambda cls, v: _clean_headers(v))
 
     @field_validator("base_url")
     @classmethod
@@ -38,6 +64,9 @@ class ModelUpdate(BaseModel):
     price_input_per_mtok: float | None = Field(default=None, ge=0)
     price_output_per_mtok: float | None = Field(default=None, ge=0)
     max_parallel_runs: int | None = Field(default=None, ge=1, le=20)
+    extra_headers: dict[str, str] | None = None  # sent as given; null/{} clears
+
+    _headers = field_validator("extra_headers")(lambda cls, v: _clean_headers(v))
 
 
 class ModelOut(ORM):
@@ -50,6 +79,7 @@ class ModelOut(ORM):
     price_input_per_mtok: float | None
     price_output_per_mtok: float | None
     max_parallel_runs: int | None = None
+    extra_headers: dict[str, str] | None = None
     last_check: dict[str, Any] | None
     created_at: datetime
 

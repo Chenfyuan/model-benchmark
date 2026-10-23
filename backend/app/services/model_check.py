@@ -61,7 +61,8 @@ def _code_image(code: str) -> str:
 class _Client:
     """Minimal protocol-aware chat client (text, image, tools)."""
 
-    def __init__(self, protocol: str, base_url: str, api_key: str, model: str, http: httpx.Client):
+    def __init__(self, protocol: str, base_url: str, api_key: str, model: str, http: httpx.Client,
+                 extra_headers: dict[str, str] | None = None):
         self.protocol, self.model, self.http = protocol, model, http
         if protocol == "openai":
             self.url = openai_base(base_url) + "/chat/completions"
@@ -69,6 +70,7 @@ class _Client:
         else:
             self.url = anthropic_base(base_url) + "/v1/messages"
             self.headers = {"Authorization": f"Bearer {api_key}", "x-api-key": api_key, "anthropic-version": "2023-06-01"}
+        self.headers = {**(extra_headers or {}), **self.headers}
 
     def chat(self, text: str, image_b64: str | None = None, tool: dict | None = None) -> dict[str, Any]:
         if self.protocol == "openai":
@@ -100,7 +102,10 @@ class _Client:
             raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
         data = resp.json()
         if self.protocol == "openai":
-            choice = (data.get("choices") or [{}])[0]
+            if not data.get("choices"):
+                # Some gateways answer errors (bad key, no quota) with HTTP 200 and a bare {"code","message"} body.
+                raise RuntimeError(f"接口返回了错误而不是模型回答: {resp.text[:200]}")
+            choice = data["choices"][0]
             msg = choice.get("message") or {}
             return {
                 "text": msg.get("content") or "",
@@ -117,7 +122,8 @@ class _Client:
         }
 
 
-def check_model(protocol: str, base_url: str, api_key: str, model: str, timeout: float = 60.0) -> dict[str, Any]:
+def check_model(protocol: str, base_url: str, api_key: str, model: str, timeout: float = 60.0,
+                extra_headers: dict[str, str] | None = None) -> dict[str, Any]:
     warnings: list[str] = []
     checks: dict[str, dict[str, Any]] = {}
     if base_url.lower().startswith("http://"):
@@ -126,7 +132,7 @@ def check_model(protocol: str, base_url: str, api_key: str, model: str, timeout:
     code = f"CODE-{random.randint(100, 999)}"
     image = _code_image(code)
     with httpx.Client(timeout=timeout) as http:
-        client = _Client(protocol, base_url, api_key, model, http)
+        client = _Client(protocol, base_url, api_key, model, http, extra_headers)
 
         def run(name: str, fn):
             try:

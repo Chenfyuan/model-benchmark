@@ -34,7 +34,7 @@ def create_model(body: ModelCreate, db: Session = Depends(get_db)):
         name=body.name, protocol=body.protocol, base_url=body.base_url.rstrip("/"), model_name=body.model_name,
         api_key_enc=encrypt(body.api_key), api_key_hint=mask(body.api_key),
         price_input_per_mtok=body.price_input_per_mtok, price_output_per_mtok=body.price_output_per_mtok,
-        max_parallel_runs=body.max_parallel_runs,
+        max_parallel_runs=body.max_parallel_runs, extra_headers=body.extra_headers,
     )
     db.add(m)
     db.commit()
@@ -77,7 +77,7 @@ def delete_model(model_id: int, db: Session = Depends(get_db)):
 @router.post("/{model_id}/check")
 def check(model_id: int, db: Session = Depends(get_db)):
     m = get_or_404(db, model_id)
-    result = check_model(m.protocol, m.base_url, decrypt(m.api_key_enc), m.model_name)
+    result = check_model(m.protocol, m.base_url, decrypt(m.api_key_enc), m.model_name, extra_headers=m.extra_headers)
     m.last_check = result
     db.commit()
     return result

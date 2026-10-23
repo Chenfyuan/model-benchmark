@@ -11,6 +11,7 @@ class Endpoint:
     base_url: str
     model_name: str
     api_key: str
+    extra_headers: dict[str, str] | None = None
 
 
 @dataclass
