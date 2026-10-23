@@ -10,6 +10,12 @@ from test_compare import complete, ids, make_run
 @pytest.mark.parametrize("target,pred,ok", [
     ("6.8", "6.8%", True), ("1000", "1,000", True), ("$12.50", "12.5", True), ("Paris", "paris.", True), ("ORBIT-208", " orbit-208 ", True),
     ("５", "5", True), ("6.8", "6.9", False), ("cat", "a cat sat", False), ("12", "120", False), ("A", "B", False), ("", "x", False),
+    # 数字后面跟量级词 / 单位词（真实 ChartQA 结果里反复出现）：数值相同就算对
+    ("524", "524 thousand", True), ("633", "633 thousand", True), ("555", "555 billion", True),
+    ("555", "555 billion dollars", True), ("6", "6 percentage points", True), ("1", "1 GPI", True),
+    # 仍然保守：数值不同、夹带别的数字、后面是整句话、单个“词”太长，都不算
+    ("11", "4.2%", False), ("524", "523 thousand", False), ("6", "6 or 7", False),
+    ("6", "6 times as many as last year", False), ("524", "524 internationalization", False),
 ])
 def test_lenient_match_rules(target, pred, ok):
     assert bool(lenient_match(target, pred, None)) is ok

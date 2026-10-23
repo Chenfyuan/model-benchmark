@@ -19,7 +19,13 @@ from sqlalchemy.orm import Session
 
 from ..models import Run, RunMetric, SampleResult
 
-NUMBER = re.compile(r"^[^\d\-+.]{0,3}([-+]?(?:\d[\d,]*)(?:\.\d+)?|[-+]?\.\d+)\s*(%|％)?\s*[A-Za-z$€¥£元]{0,6}\.?$")
+# number, then optionally % and up to 3 short words ("524 thousand", "555 billion dollars", "6 percentage points").
+# Only words after the number are ignored; the number itself must still be equal, and any further digit or a longer
+# phrase ("6 or 7", "6 times as many as last year") makes it no match.
+_WORD = r"[A-Za-z$€¥£元]{1,12}"
+NUMBER = re.compile(
+    r"^[^\d\-+.]{0,3}([-+]?(?:\d[\d,]*)(?:\.\d+)?|[-+]?\.\d+)\s*(%|％)?(?:\s*" + _WORD + r"(?:\s+" + _WORD + r"){0,2})?\.?$"
+)
 STRIP = re.compile(r"[\s\"'“”‘’`.,;:!?，。；：！？、()（）\[\]{}]+")
 
 
@@ -41,7 +47,8 @@ def lenient_match(targets: str | None, prediction: str | None, extracted: str | 
     """Reason string when the answer matches a target after normalisation, else None.
 
     Deliberately conservative: case / spacing / punctuation / full-width differences, and numbers that are equal once
-    %, thousands separators, a currency sign or a short unit are ignored. No substring matching.
+    %, thousands separators, a currency sign or trailing unit words (up to 3, e.g. "thousand", "billion dollars") are ignored.
+    No substring matching.
     """
     if not targets:
         return None
